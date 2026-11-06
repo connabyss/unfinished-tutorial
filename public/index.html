@@ -82,6 +82,14 @@
   #shopp .it { border:2px solid #e3dcc4; border-radius:12px; padding:6px; text-align:center; font-size:12px; line-height:1.25; cursor:pointer; background:#fff; }
   #shopp .it canvas { position:static; width:56px; height:56px; display:block; margin:0 auto 2px; } #shopp .it b { display:block; } #shopp .it i { display:block; font-style:normal; font-size:11px; opacity:.75; }
   #pcard .close, #shopp .close { position:sticky; top:0; float:right; height:36px; padding:0 12px; }
+  #spin { position:fixed; right:12px; bottom:calc(66px + env(safe-area-inset-bottom)); width:62px; height:62px; border-radius:50%; padding:0; font-size:13px; line-height:1.05; display:none; }
+  #spin.on { display:block; } #spin.cd { opacity:.45; }
+  @media (max-width:500px) {
+    #me, #world { max-width:calc(50% - 15px); font-size:12px; padding:6px 8px; }
+    #me { min-width:0; } #pb { width:100%; } #me .name { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #log { font-size:12px; width:calc(100% - 90px); }
+  }
+  @media (max-width:360px) { button { padding:0 10px; font-size:14px; } }
   #status { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(20,26,18,.85); font-size:18px; text-align:center; padding:20px; }
   #status.hide { display:none; }
 </style>
@@ -105,6 +113,7 @@
   <button id="invite" style="margin-left:auto">Invite</button>
 </div>
 <div id="toast"></div>
+<button id="spin">💥<br>Spin</button>
 <div id="act"></div>
 <div id="emotes"><button data-k="0">👋</button><button data-k="1">💃</button><button data-k="2" title="T-pose">🧍</button><button data-k="3">🪑</button><button data-k="4">😭</button></div>
 <div id="pcard"><button class="close" id="pcx">Close</button><h2 id="pcname"></h2><div class="sub" id="pcsub"></div>
@@ -121,12 +130,12 @@
   <h3>Quest</h3><div class="stats" id="mequest"></div>
   <h3>Save code</h3><div class="stats">This code is your character: name, level, loot, coins and looks. Use it to play on another device. Don't share it.</div>
   <div class="row" style="margin-top:6px"><b id="mekey" style="font-family:ui-monospace,Consolas,monospace;font-size:15px;align-self:center"></b><button class="opt" id="mecopy">📋 Copy</button><button class="opt" id="meload">📥 Use a save code</button></div>
-  <h3>Other</h3><div class="row"><button class="opt" id="merand">🎲 Randomize</button><button class="opt" id="mesnd"></button></div>
+  <h3>Other</h3><div class="row"><button class="opt" id="merand">🎲 Randomize</button><button class="opt" id="mesnd"></button><button class="opt" id="memus"></button></div>
 </div>
 <div id="bagp"><button class="close" id="bagx">Close</button><h2>Bag</h2><div class="sub" id="bagsub"></div><div class="grid" id="baggrid"></div></div>
 <div id="status">Connecting to the only server…</div>
 <script type="module">
-import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, QUESTS_PER_DAY } from './items.js';
+import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, QUESTS_PER_DAY, SCRAP, LUCKY_WISH, RAINBOW_OT, SPIN_CD, SECRETS } from './items.js';
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
@@ -156,6 +165,7 @@ const GUY_LINES = [
 ];
 const SIGNS = [
   { x: 960, y: 600, title: "SHOP", text: "Closed for launch." },
+  { x: 690, y: 430, title: "HALL OF FAME", text: "The most dedicated people on this server. Tap the button to look." },
   { x: 650, y: 650, title: "RESPAWN POINT", text: "Also the only point. Slimes can't come in here. They respect the tutorial." },
   { x: 1470, y: 690, title: "AREA 2 →", text: "Coming soon. The fence has HP, though. Tap it. Bring friends." },
   { x: 1700, y: 560, title: "AREA 2", text: "You made it. This is everything they built." },
@@ -172,7 +182,7 @@ for (let i = 0; i < 140; i++) FLOWERS.push({ x: R() * W, y: R() * H, c: ['#ffe57
 for (let i = 0; i < 26; i++) { const x = 60 + R() * (W - 120), y = 60 + R() * (H - 120); if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > 160) BUSHES.push({ x, y, r: 14 + R() * 12 }); }
 const SLIME_NAMES = ["SLIME_FINAL", "SLIME_FINAL_v2", "SLIME_FINAL_v2_ACTUAL", "slime (placeholder)", "slime_copy(3)", "SLIME_DO_NOT_SHIP"];
 const BOSS = 99, BOSS2 = 97, TODO = 98, FAST = 10, BIG = 11, LAG = 12, BUG = 13, FENCE_X = 1560;
-const SHOP_AT = { x: 1030, y: 580 }, FOUNTAIN_AT = { x: 1000, y: 380 }, NPC_AT = { x: 560, y: 520 };
+const HOF_AT = { x: 690, y: 430 }, SHOP_AT = { x: 1030, y: 580 }, FOUNTAIN_AT = { x: 1000, y: 380 }, NPC_AT = { x: 560, y: 520 };
 const lagAt = new Map(), teles = [];
 const ROCKS = [[1760, 320, 40], [1980, 760, 56], [2210, 420, 34], [1850, 1040, 30], [2280, 900, 44], [2080, 200, 28]];
 let fence = [150, 150, 0], fenceShake = 0;
@@ -201,8 +211,10 @@ function connect() {
     else if (m.t === 'loot') onLoot(m.item, m.x, m.y, m.from, m.why);
     else if (m.t === 'key') { myKey = m.key; store.set('ut_key', m.key); }
     else if (m.t === 'me') onMe(m);
+    else if (m.t === 'hof') renderHof(m);
+    else if (m.t === 'secret') { coins = m.coins; $('coins').textContent = coins.toLocaleString(); toast(`HIDDEN SPOT ${m.n}/${m.of}`, SECRETS[m.i].text + ' +20 coins.'); sfx('title'); log(`You found a hidden spot (${m.n}/${m.of}).`, true); }
     else if (m.t === 'err') { toast('', m.text); log(m.text, true); }
-    else if (m.t === 'title') { setTimeout(() => { toast('TITLE UNLOCKED: ' + TITLES[m.i].name, 'Tap 🎨 Me to wear it under your name.'); sfx('title'); $('mebtn').classList.add('pulse'); }, 900); }
+    else if (m.t === 'title') { if (!titlesHave.includes(m.i)) titlesHave.push(m.i); if ($('mep').classList.contains('open')) renderMe(); setTimeout(() => { toast('TITLE UNLOCKED: ' + TITLES[m.i].name, 'Tap 🎨 Me to wear it under your name.'); sfx('title'); $('mebtn').classList.add('pulse'); }, 900); }
     else if (m.t === 'coins') { coins = m.n; $('coins').textContent = coins.toLocaleString(); fx.push({ x: m.x + 14, y: m.y - 30, text: '+' + m.add + '¢', c: '#ffe36b', t: performance.now() + 200, life: 800, big: 0.85 }); }
     else if (m.t === 'qp') { if (myQuest) myQuest.have = m.have; fx.push({ x: (snapB.p.get(myId) || SPAWN).x, y: (snapB.p.get(myId) || SPAWN).y - 70, text: `quest ${m.have}/${m.n}`, c: '#bfe3ff', t: performance.now(), life: 1000, big: 0.8 }); if (m.have >= m.n) { toast('QUEST READY', 'Go back to NPC_02 to hand it in.'); sfx('title'); } }
     else if (m.t === 'kicked') { kicked = true; $('status').classList.remove('hide'); $('status').textContent = 'You opened the game somewhere else, so this tab was closed. One character, one tab. Like a real MMO.'; }
@@ -218,7 +230,7 @@ function onSnap(m) {
   snapB = { p: toMap(m.p, PK), m: toMap(m.m, MK) };
   for (const q of snapB.p.values()) { const w = q.wear || []; q.hat = w[0] ?? -1; q.hand = w[1] ?? -1; q.back = w[2] ?? -1; q.pet = w[3] ?? -1; q.trail = w[4] ?? -1; }
   worldEvent = m.ev;
-  if (m.ev) { $('evt').style.display = ''; $('evt').textContent = (m.ev[0] === 'rain' ? 'SLIME RAIN · double loot · ' : 'BUG BOUNTY · hit THE BUG · ') + m.ev[1] + 's'; } else $('evt').style.display = 'none';
+  if (m.ev) { $('evt').style.display = ''; $('evt').textContent = (m.ev[0] === 'rain' ? 'SLIME RAIN · 2x loot · ' : m.ev[0] === 'hotfix' ? 'HOTFIX · 2x loot · ' : 'BUG BOUNTY · ') + Math.max(0, m.ev[1]) + 's'; } else $('evt').style.display = 'none';
   snapAt = performance.now();
   total = m.total;
   if (m.fz) { const was = fence[2]; fence = m.fz; $('a2').style.display = fence[2] ? '' : 'none'; if (fence[2]) $('a2').textContent = `AREA 2 OPEN: ${Math.floor(fence[2] / 60)}:${String(fence[2] % 60).padStart(2, '0')}`; }
@@ -287,8 +299,9 @@ function onEvent(e) {
   else if (e.e === 'give') { const a = snapB.p.get(e.from), b = snapB.p.get(e.to); if (a && b) fx.push({ item: e.item, x: a.x, y: a.y, tx: b.x, ty: b.y - 40, t: now, life: 800, to: e.to }); }
   else if (e.e === 'wish') { for (let i = 0; i < 30; i++) fx.push({ x: 1000, y: 380, vx: (Math.random() - .5) * 200, vy: -Math.random() * 300, dot: true, sz: 4, c: ['#ffe36b', '#9fd3ff', '#fff'][i % 3], t: now, life: 900 }); if (near({ x: 1000, y: 380 })) sfx('loot', 1); }
   else if (e.e === 'quest') { const p2 = snapB.p.get(e.id); if (p2) fx.push({ x: p2.x, y: p2.y - 60, text: 'QUEST COMPLETE_STRING', c: '#bfe3ff', t: now, life: 1400, big: 1 }); }
-  else if (e.e === 'finished') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 180, c: '#ffd700', t: now, life: 900 }); for (let i = 0; i < 60; i++) fx.push({ x: p2.x, y: p2.y, vx: (Math.random() - .5) * 600, vy: (Math.random() - .8) * 600, dot: true, sz: 5, c: '#ffd700', t: now, life: 1200 }); } if (e.id !== myId) toast('SOMEONE FOUND A FINISHED ITEM', `${nameOf(e.id)} has ${ITEMS[e.item].name}. Go look.`); }
-  else if (e.e === 'event') { toast(e.kind === 'rain' ? 'WORLD EVENT: SLIME RAIN' : 'WORLD EVENT: BUG BOUNTY', e.kind === 'rain' ? 'A spawn loop is stuck. Double loot for 45 seconds.' : 'THE BUG is loose. Hit it before it escapes to production.'); sfx('fanfare'); shake(6); }
+  else if (e.e === 'finished') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 180, c: '#ffd700', t: now, life: 900 }); for (let i = 0; i < 60; i++) fx.push({ x: p2.x, y: p2.y, vx: (Math.random() - .5) * 600, vy: (Math.random() - .8) * 600, dot: true, sz: 5, c: '#ffd700', t: now, life: 1200 }); } if (e.id !== myId) toast('SOMEONE FINISHED SOMETHING', `${nameOf(e.id)} earned ${ITEMS[e.item].name}${e.n ? ' (#' + e.n + ' ever)' : ''}. Go look.`); }
+  else if (e.e === 'spin') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 110, c: '#ffffff', t: now, life: 350 }); if (e.id === myId) { sfx('crit'); shake(e.hit ? 6 : 2); } } }
+  else if (e.e === 'event') { toast(e.kind === 'rain' ? 'WORLD EVENT: SLIME RAIN' : e.kind === 'hotfix' ? 'HOTFIX DEPLOYED' : 'WORLD EVENT: BUG BOUNTY', e.kind === 'rain' ? 'A spawn loop is stuck. Double loot for 45 seconds.' : e.kind === 'hotfix' ? 'Double loot for 5 minutes while the devs look the other way.' : 'THE BUG is loose. Hit it before it escapes to production.'); sfx('fanfare'); shake(6); }
   else if (e.e === 'patch') { toast('PATCH ' + e.name + ' SHIPPED', e.note); sfx('fanfare'); }
   else if (e.e === 'die' && e.id === myId) { toast('YOU DIED', 'Respawning at the only spawn point.'); sfx('die'); shake(10); }
 }
@@ -297,7 +310,7 @@ function log(text, sys, who, said) {
   if (sys) { d.className = 'sys'; d.textContent = text; }
   else { const b = document.createElement('b'); b.textContent = who + ': '; d.append(b, said); }
   $('log').append(d);
-  while ($('log').children.length > 5) $('log').firstChild.remove();
+  while ($('log').children.length > (innerHeight < 760 || innerWidth < 500 ? 3 : 5)) $('log').firstChild.remove();
   setTimeout(() => { d.style.opacity = 0; }, 9000); setTimeout(() => d.remove(), 10000);
 }
 let toastT = 0;
@@ -361,6 +374,11 @@ function renderBag() {
   const g = $('baggrid'); g.innerHTML = '';
   const head = (t) => { const h = document.createElement('h3'); h.textContent = t; h.style.gridColumn = '1/-1'; h.style.margin = '8px 0 0'; g.append(h); };
   if (giveTo == null) {
+    const sb = document.createElement('button'); sb.className = 'opt'; sb.style.gridColumn = '1/-1'; sb.textContent = scrapMode ? '♻ Recycling: tap an item with spares (×2+) to turn one into coins. Tap here to stop.' : `♻ Recycle spare copies for coins (${SCRAP.join(' / ')} by rarity)`;
+    sb.onclick = () => { scrapMode = !scrapMode; renderBag(); }; g.append(sb);
+  }
+  const sets = () => {
+    if (giveTo != null) return;
     head('Sets (wear 3+ pieces for a glow)');
     for (const { st, n, have } of setInfo()) {
       const d = document.createElement('div'); d.className = 'it' + (n >= 3 ? ' on' : ''); d.style.gridColumn = 'span 2'; d.style.textAlign = 'left';
@@ -369,7 +387,7 @@ function renderBag() {
       const l = document.createElement('i'); l.textContent = st.items.map((id) => (bag[id] > 0 ? '' : '? ') + ITEMS[idx(id)].name).join(' · ');
       d.append(b, r, l); g.append(d);
     }
-  }
+  };
   for (const slot of SLOTS) {
     head(SLOT_NAMES[slot]);
     ITEMS.forEach((it, i) => {
@@ -390,6 +408,7 @@ function renderBag() {
         d.title = it.text;
         d.onclick = () => {
           sfx('click');
+          if (scrapMode && giveTo == null) { if (bag[it.id] > 1 && it.r <= 2) send({ t: 'scrap', item: i }); else toast('', it.r > 2 ? "Unfinished and Finished items can't be recycled." : 'You only have one. Keep it.'); return; }
           if (giveTo != null) { if (isBound(it)) { toast('BOUND TO YOU', 'Trading this wasn\'t coded. You earned it, so it stays.'); return; } send({ t: 'give', to: giveTo, item: i }); giveTo = null; $('bagp').classList.remove('open'); return; }
           wearItem(it.slot, on ? null : i); renderBag();
         };
@@ -397,8 +416,13 @@ function renderBag() {
       g.append(d);
     });
   }
+  sets();
 }
-$('bag').onclick = () => { giveTo = null; $('bag').classList.remove('new'); renderBag(); $('bagp').classList.add('open'); $('mep').classList.remove('open'); $('shopp').classList.remove('open'); };
+let scrapMode = false, spinAt = -1e9;
+$('spin').onclick = (ev) => { ev.stopPropagation(); const now = performance.now(); if (now - spinAt < SPIN_CD) return; spinAt = now; send({ t: 'spin' }); };
+addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target !== $('msg')) { e.preventDefault(); $('spin').click(); } });
+setInterval(() => { const me = snapB && snapB.p.get(myId); $('spin').classList.toggle('on', !!me && !$('chatbox').classList.contains('open')); const left = SPIN_CD - (performance.now() - spinAt); $('spin').classList.toggle('cd', left > 0); $('spin').innerHTML = left > 0 ? '💥<br>' + Math.ceil(left / 1000) + 's' : '💥<br>Spin'; }, 200);
+$('bag').onclick = () => { send({ t: 'me' }); giveTo = null; scrapMode = false; $('bag').classList.remove('new'); renderBag(); $('bagp').classList.add('open'); $('mep').classList.remove('open'); $('shopp').classList.remove('open'); };
 $('bagx').onclick = () => { giveTo = null; $('bagp').classList.remove('open'); };
 
 // Hats are drawn with the head at (0,0), radius 14. Hand items point up from the hand.
@@ -533,6 +557,23 @@ function sfx(name, n = 0, v = 1) {
   else if (name === 'slam') { tone(a, 'sawtooth', 120, 30, 0.45, 0.22); noise(a, 0.35, 0.3, 0, 120); }
   else if (name === 'click') { tone(a, 'triangle', 900, 700, 0.04, 0.05); }
 }
+// background music: music_placeholder.mid. A 4-chord loop the composer left as a "temp track". Quiet.
+let musicOn = store.get('ut_music') !== '0', musicT = 0, musicStep = 0, musicToast = false;
+const CHORDS = [[262, 330, 392], [220, 262, 330], [175, 220, 262], [196, 247, 294]]; // C, Am, F, G
+function musicTick() {
+  const a = !muted && musicOn ? actx : null; if (!a || a.state !== 'running') { musicT = 0; return; }
+  const beat = 60 / 104 / 2; // eighth notes
+  if (!musicT || musicT < a.currentTime) musicT = a.currentTime + 0.1;
+  while (musicT < a.currentTime + 0.6) {
+    const bar = Math.floor(musicStep / 8) % 4, k = musicStep % 8, ch = CHORDS[bar], at = musicT - a.currentTime;
+    if (k === 0 || k === 4) tone(a, 'triangle', ch[0] / 2, ch[0] / 2, beat * 3.5, 0.035, at);
+    tone(a, 'square', ch[[0, 1, 2, 1][k % 4]] * 2, ch[[0, 1, 2, 1][k % 4]] * 2, beat * 0.8, 0.008, at);
+    if (k === 2 || k === 6) noise(a, 0.03, 0.02, at, 4000);
+    musicT += beat; musicStep++;
+  }
+  if (!musicToast && musicStep > 8) { musicToast = true; log('Now playing: music_placeholder.mid (loop 1 of ∞). Turn it off in 🎨 Me.', true); }
+}
+setInterval(musicTick, 200);
 const COMBO_WORDS = [[5, 'Nice.'], [10, 'Unbalanced.'], [15, 'The devs did not plan for this.'], [20, 'Please stop, the server is crying.'], [30, 'Not tested past here.'], [50, 'You found the real endgame.']];
 function onMyHit(e) {
   const now = performance.now();
@@ -551,23 +592,25 @@ const bodyColor = (hue, now) => hue >= 360 ? `hsl(${(now / 8) % 360} 75% 58%)` :
 function opt(label, on, click, extra) { const b = document.createElement('button'); b.className = 'opt' + (on ? ' on' : '') + (extra || ''); b.textContent = label; b.onclick = () => { sfx('click'); click(); }; return b; }
 const fmtKey = (k) => (k || '').replace(/(.{5})(?=.)/g, '$1-');
 function renderMe() {
-  $('mestats').textContent = `Lifetime: ${(stats.kills || 0).toLocaleString()} kills · ${stats.deaths || 0} deaths · best combo ×${stats.combo || 0} · ${stats.boss || 0} bosses · ${stats.days || 0} days played · ${stats.ships || 0} patches shipped · overtime ★${stats.ot || 0} · ${stats.found || 0}/${ITEMS.length} items · ${coins.toLocaleString()} coins`;
+  $('mestats').textContent = `Lifetime: ${(stats.kills || 0).toLocaleString()} kills · ${stats.deaths || 0} deaths · best combo ×${stats.combo || 0} · ${stats.boss || 0} bosses · ${stats.days || 0} days played · ${stats.ships || 0} patches shipped · overtime ★${stats.ot || 0} · hidden spots ${stats.secrets || 0}/${SECRETS.length} · ${stats.found || 0}/${ITEMS.length} items · ${coins.toLocaleString()} coins`;
   const col = $('mecol'); col.innerHTML = '';
-  for (const h of HUES) { const b = document.createElement('button'); b.className = 'sw' + (myHue === h ? ' on' : ''); b.style.background = h >= 360 ? 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' : `hsl(${h} 70% 55%)`; b.title = h >= 360 ? 'Rainbow (unstable)' : ''; b.onclick = () => { sfx('click'); myHue = h; saveMe(); }; col.append(b); }
+  for (const h of HUES) { const b = document.createElement('button'); b.className = 'sw' + (myHue === h ? ' on' : ''); b.style.background = h >= 360 ? 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' : `hsl(${h} 70% 55%)`; const lockR = h >= 360 && (stats.ot || 0) < RAINBOW_OT; b.title = h >= 360 ? (lockR ? `Rainbow: unlocks at overtime ★${RAINBOW_OT}` : 'Rainbow (unstable)') : ''; if (lockR) { b.textContent = '🔒'; b.style.opacity = .6; } b.onclick = () => { sfx('click'); if (lockR) { toast('LOCKED', `Rainbow unlocks at overtime ★${RAINBOW_OT}. Keep playing past level 5.`); return; } myHue = h; saveMe(); }; col.append(b); }
   const rows = [['meshape', SHAPES, 0], ['meeyes', EYES, 1], ['memouth', MOUTHS, 2]];
   for (const [id, list, k] of rows) { const r = $(id); r.innerHTML = ''; list.forEach((nm, i) => r.append(opt(nm, look[k] === i, () => { look[k] = i; saveMe(); }))); }
   const tr = $('metitle'); tr.innerHTML = '';
   TITLES.forEach((t, i) => { const got = titlesHave.includes(i); tr.append(opt(got ? t.name : '🔒 ' + t.how, look[3] === i, () => { if (!got) { toast('LOCKED', t.how + ' to unlock it.'); return; } look[3] = i; saveMe(); }, got ? '' : ' locked')); });
   $('mesnd').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
+  $('memus').textContent = musicOn ? '🎵 Music on' : '🎵 Music off';
   $('mekey').textContent = myKey ? fmtKey(myKey) : '(not made yet)';
   const q = myQuest && QUESTS[myQuest.i];
   $('mequest').textContent = q ? `Quest from NPC_02: ${q.text} ${myQuest.have}/${q.n} (reward ${q.coins} coins)` : isUnlocked(patch, 'quests') ? (qleft > 0 ? `No quest. NPC_02 has ${qleft} left today.` : 'NPC_02 clocked out for today. Union rules.') : 'Quests arrive in a future patch.';
 }
-function openMe() { $('mebtn').classList.remove('pulse'); $('mename').value = myName; renderMe(); $('mep').classList.add('open'); $('bagp').classList.remove('open'); $('shopp').classList.remove('open'); }
+function openMe() { send({ t: 'me' }); $('mebtn').classList.remove('pulse'); $('mename').value = myName; renderMe(); $('mep').classList.add('open'); $('bagp').classList.remove('open'); $('shopp').classList.remove('open'); }
 $('mebtn').onclick = openMe;
 $('mex').onclick = () => { const n = $('mename').value.trim(); if (n.length >= 2 && n !== myName) send({ t: 'rename', name: n }); $('mep').classList.remove('open'); };
 $('mename').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('mex').click(); });
 $('merand').onclick = () => { sfx('click'); myHue = HUES[Math.floor(Math.random() * HUES.length)]; look = [Math.floor(Math.random() * SHAPES.length), Math.floor(Math.random() * EYES.length), Math.floor(Math.random() * MOUTHS.length), look[3]]; saveMe(); };
+$('memus').onclick = () => { musicOn = !musicOn; store.set('ut_music', musicOn ? '1' : '0'); renderMe(); };
 $('mesnd').onclick = () => { muted = !muted; store.set('ut_mute', muted ? '1' : '0'); if (!muted) sfx('click'); renderMe(); };
 $('mecopy').onclick = async () => { sfx('click'); try { await navigator.clipboard.writeText(fmtKey(myKey)); toast('SAVE CODE COPIED', 'Keep it somewhere safe. It is your whole character.'); } catch { prompt('Your save code:', fmtKey(myKey)); } };
 $('meload').onclick = () => {
@@ -658,12 +701,28 @@ function updateActions() {
   const acts = [];
   const d = (o) => Math.hypot(me.x - o.x, me.y - o.y);
   if (isUnlocked(patch, 'shop') && d(SHOP_AT) < 150) acts.push(['🛒 Shop', openShop]);
-  if (isUnlocked(patch, 'fountain') && d(FOUNTAIN_AT) < 130) acts.push([`🪙 Wish (${WISH_COST})`, () => send({ t: 'wish' })]);
+  if (isUnlocked(patch, 'fountain') && d(FOUNTAIN_AT) < 130) { acts.push([`🪙 Wish (${WISH_COST})`, () => send({ t: 'wish' })]); acts.push([`🍀 Lucky Wish: a Rare (${LUCKY_WISH})`, () => send({ t: 'lucky' })]); }
+  if (d(HOF_AT) < 120) acts.push(['🏆 Hall of Fame', () => send({ t: 'hof' })]);
   if (isUnlocked(patch, 'quests') && d(NPC_AT) < 130) acts.push([myQuest && myQuest.have >= QUESTS[myQuest.i].n ? '✅ Hand in quest' : myQuest ? '📜 Quest (in progress)' : '📜 Get a quest', () => send({ t: 'quest' })]);
   const key = acts.map((a) => a[0]).join('|');
   if (key === actKey) return; actKey = key;
   const el = $('act'); el.innerHTML = '';
   for (const [label, fn] of acts) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => { sfx('click'); fn(); }; el.append(b); }
+}
+function renderHof(m) {
+  $('shoph').textContent = 'HALL OF FAME';
+  $('shopsub').textContent = 'Top 10 on this server, by lifetime numbers. Updated every few seconds. Earned, not bought.';
+  const g = $('shopgrid'); g.innerHTML = '';
+  const cats = [['kills', 'Most slimes killed'], ['boss', 'Most bosses (really helped)'], ['ot', 'Most unpaid overtime ★'], ['fin', 'Finished items earned']];
+  for (const [k, label] of cats) {
+    const d = document.createElement('div'); d.className = 'it'; d.style.gridColumn = '1/-1'; d.style.textAlign = 'left'; d.style.cursor = 'default';
+    const b = document.createElement('b'); b.textContent = label; d.append(b);
+    const list = (m.hof && m.hof[k]) || [];
+    if (!list.length) { const i = document.createElement('i'); i.textContent = 'Nobody yet. This could be you.'; i.style.display = 'block'; d.append(i); }
+    list.forEach(([name, v], n) => { const i = document.createElement('div'); i.textContent = `${['🥇', '🥈', '🥉'][n] || (n + 1) + '.'} ${name} · ${v.toLocaleString()}`; if (name === m.me) i.style.fontWeight = '800'; d.append(i); });
+    g.append(d);
+  }
+  $('shopp').classList.add('open'); $('bagp').classList.remove('open'); $('mep').classList.remove('open');
 }
 function openShop() { renderShop(); $('shopp').classList.add('open'); $('bagp').classList.remove('open'); $('mep').classList.remove('open'); }
 function renderShop() {
@@ -717,12 +776,13 @@ function wrapText(t, max) { const words = t.split(' '), lines = []; let line = '
 function bubble(x, y, text, col) {
   cx.font = '600 13px system-ui,sans-serif';
   const lines = wrapText(text, 180), lh = 16, w = Math.max(...lines.map((l) => cx.measureText(l).width)) + 16, h = lines.length * lh + 10;
-  const bx = x - w / 2, by = y - h - 8;
+  const cam = camera(); let bx = x - w / 2; const by = y - h - 8;
+  bx = Math.max(cam.x + 6, Math.min(cam.x + vw - w - 6, bx));
   cx.fillStyle = col || '#fffdf3'; cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2;
   cx.beginPath(); cx.roundRect(bx, by, w, h, 8); cx.fill(); cx.stroke();
   cx.beginPath(); cx.moveTo(x - 6, by + h); cx.lineTo(x, by + h + 7); cx.lineTo(x + 6, by + h); cx.fill();
   cx.fillStyle = '#1b1f17'; cx.textAlign = 'center';
-  lines.forEach((l, i) => cx.fillText(l, x, by + 17 + i * lh));
+  lines.forEach((l, i) => cx.fillText(l, bx + w / 2, by + 17 + i * lh));
 }
 function drawPlayer(p, now) {
   const isMe = p.id === myId, sw = swings.get(p.id) || 0, swing = now - sw < 220 ? (now - sw) / 220 : 0, h = now - (hurt.get(p.id) || 0) < 200;
@@ -750,7 +810,7 @@ function drawPlayer(p, now) {
 function drawTag(p) {
   const isMe = p.id === myId, tag = p.name + ' · ' + p.lvl + (p.ot ? '★' + p.ot : '');
   cx.font = (isMe ? '700 ' : '600 ') + '12px system-ui,sans-serif'; cx.textAlign = 'center';
-  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText(tag, p.tagX, p.tagY); cx.fillStyle = isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, p.tagX, p.tagY);
+  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText(tag, p.tagX, p.tagY); cx.fillStyle = p.ot >= 100 ? `hsl(${(performance.now() / 8) % 360} 90% 70%)` : p.ot >= 25 ? '#ffd700' : isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, p.tagX, p.tagY);
   const ti = p.look && p.look[3];
   if (ti > 0 && TITLES[ti]) { const t = '«' + TITLES[ti].name + '»'; cx.font = 'italic 600 10px system-ui,sans-serif'; cx.strokeText(t, p.tagX, p.tagY + 12); cx.fillStyle = '#bfe3ff'; cx.fillText(t, p.tagX, p.tagY + 12); }
 }
@@ -801,7 +861,9 @@ function drawSlime(s, now) {
   const big = boss || knight;
   cx.font = (big ? '800 13px' : '600 10px') + ' ui-monospace,Consolas,monospace'; cx.textAlign = 'center';
   const label = KNAME[k] || SLIME_NAMES[k] || 'slime', ly = s.y - r - (knight ? 34 : 8);
-  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, ly); cx.fillStyle = boss ? '#ff7bf0' : knight ? '#ffb0b0' : todo ? '#ffffff' : k === LAG ? '#cfe6ff' : '#e8ffe0'; cx.fillText(label, s.x, ly);
+  const meP = snapB && snapB.p.get(myId);
+  const showLabel = big || k === BUG || s.hp < s.max || (meP && Math.hypot(meP.x - s.x, meP.y - s.y) < 170);
+  if (showLabel) { cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, ly); cx.fillStyle = boss ? '#ff7bf0' : knight ? '#ffb0b0' : todo ? '#ffffff' : k === LAG ? '#cfe6ff' : '#e8ffe0'; cx.fillText(label, s.x, ly); }
   if (s.hp < s.max || big) { const bw = big ? 90 : k === BIG ? 44 : 28; cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw, 5); cx.fillStyle = boss ? '#ff00dc' : knight ? '#ff5c5c' : '#7be36a'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw * Math.max(0, s.hp) / s.max, 5); }
 }
 function drawSign(s) {
@@ -928,11 +990,23 @@ function frame() {
   draw.sort((a, b) => a.y - b.y).forEach((d) => d.f());
   for (const d of draw) if (d.tag) drawTag(d.tag);
   for (const d of draw) if (d.tag) { const em = emotes.get(d.tag.id); if (em && now - em.t < 2600) { const k = (now - em.t) / 2600; cx.globalAlpha = k > 0.8 ? (1 - k) * 5 : 1; cx.font = '26px system-ui'; cx.textAlign = 'center'; cx.fillText(EMOTE_ICONS[em.k], d.tag.x, d.tag.y - 40 - Math.min(1, k * 6) * 8); cx.globalAlpha = 1; } }
+  // first-time coach: point at the nearest slime until your first kill
+  const coaching = me && snapB && !(stats.kills > 0) && !(me.kills > 0);
+  if (coaching) {
+    let best = null, bd = 1e9; for (const id of snapB.m.keys()) { const s = interp('m', id); const d = Math.hypot(s.x - me.x, s.y - me.y); if (d < bd && s.kind !== 98) { bd = d; best = s; } }
+    if (best) {
+      const a = Math.atan2(best.y - me.y, best.x - me.x), r0 = 34, r1 = Math.max(r0 + 10, Math.min(bd - radiusOf(best.kind) - 8, 140)), bob = Math.sin(now / 160) * 4;
+      cx.save(); cx.translate(me.x, me.y); cx.rotate(a); cx.strokeStyle = '#ffd34d'; cx.fillStyle = '#ffd34d'; cx.lineWidth = 4; cx.setLineDash([8, 6]);
+      cx.beginPath(); cx.moveTo(r0, 0); cx.lineTo(r1 + bob, 0); cx.stroke(); cx.setLineDash([]);
+      cx.beginPath(); cx.moveTo(r1 + bob + 12, 0); cx.lineTo(r1 + bob, -8); cx.lineTo(r1 + bob, 8); cx.fill(); cx.restore();
+      bubble(best.x, best.y - radiusOf(best.kind) - 14, 'Tap me to fight!', '#fff6c9');
+    }
+  }
   // speech
   if (snapB) for (const [id, b] of bubbles) { const p = interp('p', id); if (!p || now > b.until) { bubbles.delete(id); continue; } bubble(p.x, p.y - 40, b.text); }
   if (me) {
     if (Math.hypot(me.x - GUY.x, me.y - GUY.y) < 150) { if (now - guyAt > 4200) { guyAt = now; guyLine = (guyLine + 1) % GUY_LINES.length; } bubble(GUY.x, GUY.y - 30, GUY_LINES[guyLine], '#fff6c9'); }
-    for (const s of SIGNS) if (Math.hypot(me.x - s.x, me.y - s.y) < 110) bubble(s.x, s.y - 30, s.title + ': ' + s.text, '#f6e3c0');
+    if (!coaching) for (const s of SIGNS) if (Math.hypot(me.x - s.x, me.y - s.y) < 110) bubble(s.x, s.y - 30, s.title + ': ' + s.text, '#f6e3c0');
     for (let i = 0; i < Math.min(patch, PATCHES.length); i++) { const s = PATCHES[i]; if (s.x != null && Math.hypot(me.x - s.x, me.y - s.y) < 90) bubble(s.x, s.y - 44, s.title + ': ' + s.text, '#dcecff'); }
   }
   // floating numbers and bits

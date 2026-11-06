@@ -84,20 +84,32 @@ export const SETS = [
   { name: "Asset Store", color: "#ff9a3d", items: ["cone", "baguette", "pack", "pslime"] },
 ];
 
-export const DROP_CHANCE = 0.3; // per person who hit a normal slime
-export const EPIC_BOSSES = 10;  // Unfinished boss loot starts after you've really helped kill this many bosses
+export const DROP_CHANCE = 0.2; // per person who hit a normal slime
+export const EPIC_BOSSES = 25;  // Unfinished boss loot starts after you've really helped kill this many bosses
 export const isBound = (it) => it.r >= 3; // Unfinished and Finished can't be given away
 export const GIFT_MIN_KILLS = 100, GIFTS_PER_DAY = 10;
 
 // Every Finished item is earned with a long goal, never by luck. Progress shows in the Bag.
 export const GOALS = {
-  realhat: { k: "kills", n: 3000, how: "Kill 3,000 slimes" },
-  realsword: { k: "boss", n: 75, how: "Really help kill 75 bosses" },
-  realcape: { k: "days", n: 7, how: "Play on 7 different days (10+ kills each day)" },
-  realpet: { k: "found", n: 40, how: "Find 40 different items yourself (gifts don't count)" },
-  realtrail: { k: "ships", n: 5, how: "Help ship 5 patches (25+ kills during each one)" },
+  realhat: { k: "kills", n: 10000, how: "Kill 10,000 slimes" },
+  realsword: { k: "boss", n: 150, how: "Really help kill 150 bosses" },
+  realcape: { k: "days", n: 14, how: "Play on 14 different days (50+ kills each day)" },
+  realpet: { k: "found", n: 40, how: "Find 40 different items from drops (no shop, wishes or gifts)" },
+  realtrail: { k: "ships", n: 8, how: "Help ship 8 patches (100+ kills during each one)" },
 };
-export const SHIP_KILLS = 25, DAY_KILLS = 10;
+export const SHIP_KILLS = 100, DAY_KILLS = 50;
+export const SCRAP = [2, 6, 25];           // coins for recycling one spare copy, by rarity
+export const LUCKY_WISH = 400;             // fountain: guaranteed Rare
+export const RAINBOW_OT = 10;              // rainbow body color unlocks at overtime ★10
+export const SPIN_CD = 6000;               // spin attack cooldown (ms)
+// Hidden spots. Walk onto one to find it (titles for finding them). Not drawn on the map.
+export const SECRETS = [
+  { x: 430, y: 300, text: "Behind the house. There's no back. It's a flat picture of a house." },
+  { x: 25, y: 25, text: "The top-left corner. Coordinates (0, 0). The origin of everything. It's grass." },
+  { x: 800, y: 1180, text: "Past the WORLD EDGE sign. Nothing happened. The fog is also a placeholder." },
+  { x: 300, y: 700, text: "You tried to swim in the pond spot. It's a rectangle. You're standing on it." },
+  { x: 2375, y: 1175, text: "Area 2's far corner: the dev room. One chair, one mug, one sticky note: 'fix later'." },
+];
 // Overtime: after level 5 your XP keeps going into unpaid overtime levels, shown as a star next to your level.
 export const otNeed = (ot) => 40 + 10 * ot;
 
@@ -105,7 +117,7 @@ export const otNeed = (ot) => 40 + 10 * ot;
 // Finished items never drop: see GOALS.
 export function rollItem(rnd, boss, epic = false) {
   if (boss) {
-    const tier = epic && rnd() < 0.15 ? 3 : 2;
+    const tier = epic && rnd() < 0.08 ? 3 : rnd() < 0.45 ? 2 : 1; // Rare is a 45% chance, not a guarantee
     const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === tier);
     return pool[Math.floor(rnd() * pool.length)];
   }
@@ -135,6 +147,15 @@ export const PATCHES = [
   { id: "lamp", tease: "a lamp", note: "Added a street lamp. There is no night.", x: 900, y: 860, title: "LAMP", text: "Always on. There is no night." },
   { id: "spawn2", tease: "a second spawn point", note: "Added a second spawn point. It isn't connected to anything.", x: 1420, y: 1020, title: "SPAWN POINT 2", text: "Not connected to anything. Like the roadmap." },
 ];
+// After the list runs out, each patch is a "hotfix": 5 minutes of double loot for everyone, plus a note.
+export const HOTFIX_NOTES = [
+  "Hotfix: fixed a bug where slimes had feelings. They still do. Double loot for 5 minutes as an apology.",
+  "Hotfix: rebalanced the slimes by rotating them 1 degree. Double loot for 5 minutes.",
+  "Hotfix: the fence now says 'ouch'. Silently. Double loot for 5 minutes.",
+  "Hotfix: renamed SLIME_FINAL_v2_ACTUAL to SLIME_FINAL_v2_ACTUAL. Double loot for 5 minutes.",
+  "Hotfix: removed a memory leak by adding a bigger memory leak somewhere else. Double loot for 5 minutes.",
+  "Hotfix: Area 3 is 0.4% done. Double loot for 5 minutes.",
+];
 export const unlocked = (patch, feature) => PATCHES.slice(0, patch).some((p) => p.unlock === feature);
 export const patchGoal = (n) => 40 + 20 * n + 5 * n * n; // kills needed to ship patch number n (0-based); later patches take longer
 export const patchName = (n) => "0.0." + (n + 1);
@@ -154,20 +175,22 @@ export const TITLES = [
   { name: "Hat Haver", need: { found: 5 }, how: "Find 5 different items" },
   { name: "Max Level (it's 5)", need: { lvl: 5 }, how: "Reach level 5" },
   { name: "Boss Puncher", need: { boss: 1 }, how: "Help kill MISSING_TEXTURE" },
-  { name: "Collector", need: { found: 30 }, how: "Find 30 different items yourself" },
+  { name: "Collector", need: { found: 30 }, how: "Find 30 different items from drops" },
   { name: "Completionist", need: { found: ITEMS.length }, how: `Find all ${ITEMS.length} items` },
   { name: "Set Enjoyer", need: { sets: 1 }, how: "Wear a full set" },
   { name: "Mostly Finished", need: { kills: 1000 }, how: "Kill 1,000 slimes" },
   { name: "Raid Regular", need: { boss: 25 }, how: "Really help kill 25 bosses" },
   { name: "Unpaid Overtime", need: { ot: 10 }, how: "Reach overtime ★10 (keep playing past level 5)" },
   { name: "Crunch Survivor", need: { ot: 50 }, how: "Reach overtime ★50" },
-  { name: "Regular", need: { days: 7 }, how: "Play on 7 different days" },
-  { name: "Shipped It", need: { ships: 5 }, how: "Help ship 5 patches" },
+  { name: "Regular", need: { days: 7 }, how: "Play on 7 different days (50+ kills each)" },
+  { name: "Shipped It", need: { ships: 5 }, how: "Help ship 5 patches (100+ kills each)" },
   { name: "Actually Finished", need: { fin: 5 }, how: "Earn all 5 Finished items" },
+  { name: "Clipped Through", need: { secrets: 1 }, how: "Find a hidden spot" },
+  { name: "QA Lead", need: { secrets: 5 }, how: "Find all 5 hidden spots" },
 ];
 
 // The shop (after patch "shop"). Prices in Placeholder Coins. Rare stock rotates daily.
-export const PRICES = [15, 40, 200];
+export const PRICES = [15, 40, 500];
 export function shopStock(day) {
   const common = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r <= 1);
   const rares = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 2);
