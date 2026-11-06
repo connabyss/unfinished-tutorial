@@ -5,13 +5,29 @@ const BAD = [
   "fuck", "fuk", "fck", "shit", "bitch", "cunt", "dick", "cock", "pussy", "asshole", "bastard", "whore", "slut",
   "nigger", "niger", "nigga", "niga", "faggot", "fagot", "fag", "retard", "retarded", "tranny", "kike", "spic", "chink",
   "gook", "wetback", "coon", "dyke", "nazi", "hitler", "rape", "rapist", "porn", "penis", "vagina", "cum", "jizz",
-  "molest", "pedo", "kys", "killyourself",
+  "molest", "pedo", "kys", "killyourself", "phuck", "phuk", "biatch", "fukk", "shyt",
 ];
 // Short words that are only bad on their own (so "cockpit" or "scum" pass in chat, but not as a whole word).
 const WHOLE = new Set(["fag", "cum", "kys", "spic", "coon", "gook", "dick", "cock", "niga", "niger"]);
 
+// look-alike letters from other alphabets (Cyrillic, Greek) and accented letters fold to plain English letters first
+const LOOK = { "а": "a", "е": "e", "ё": "e", "о": "o", "р": "p", "с": "c", "ѕ": "s", "і": "i", "ї": "i", "ј": "j", "х": "x", "у": "y", "к": "k", "м": "m",
+  "т": "t", "в": "b", "н": "h", "г": "r", "п": "n", "и": "u", "ь": "b", "ԁ": "d", "ɡ": "g", "ԛ": "q", "ա": "w", "ᴜ": "u",
+  "α": "a", "β": "b", "ε": "e", "η": "n", "ι": "i", "κ": "k", "ν": "v", "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "χ": "x", "γ": "y", "ω": "w", "μ": "u", "σ": "o", "ς": "c" };
+function unlook(s) {
+  return s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/./gu, (c) => LOOK[c] || c);
+}
+// names nobody can take: staff-sounding names and the game's own characters
+const RESERVED = ["admin", "administrator", "mod", "moderator", "dev", "developer", "devs", "staff", "system", "server", "official", "owner",
+  "support", "tutorial", "npc", "qa", "anthropic", "claude", "gm", "gamemaster"];
+export function isReserved(name) {
+  const f0 = unlook(name).replace(/[^a-z0-9]/g, "");
+  return [f0, f0.replace(/[l1]/g, "i").replace(/0/g, "o").replace(/5/g, "s")].some((f) =>
+    RESERVED.includes(f) || /^npc/.test(f) || /^(admin|moderator|official|gamemaster)/.test(f) || /(admin|moderator)$/.test(f));
+}
+
 function fold(s) {
-  return s.toLowerCase()
+  return unlook(s)
     .replace(/[0]/g, "o").replace(/[1!|]/g, "i").replace(/3/g, "e").replace(/[4@]/g, "a")
     .replace(/[5$]/g, "s").replace(/7/g, "t").replace(/8/g, "b")
     .replace(/(.)\1+/g, "$1");

@@ -135,7 +135,7 @@
 <div id="bagp"><button class="close" id="bagx">Close</button><h2>Bag</h2><div class="sub" id="bagsub"></div><div class="grid" id="baggrid"></div></div>
 <div id="status">Connecting to the only server…</div>
 <script type="module">
-import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, QUESTS_PER_DAY, SCRAP, LUCKY_WISH, RAINBOW_OT, SPIN_CD, SECRETS } from './items.js';
+import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, QUESTS_PER_DAY, SCRAP, LUCKY_WISH, RAINBOW_OT, SPIN_CD, SECRETS, LAUNCH_CROWD, patchName, OT_REWARDS } from './items.js';
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
@@ -170,6 +170,12 @@ const SIGNS = [
   { x: 1470, y: 690, title: "AREA 2 →", text: "Coming soon. The fence has HP, though. Tap it. Bring friends." },
   { x: 1700, y: 560, title: "AREA 2", text: "You made it. This is everything they built." },
   { x: 2330, y: 560, title: "AREA 3 →", text: "Coming soon. For real this time." },
+  { x: 1990, y: 600, bare: 1, title: "RIP CRAFTING", text: "Announced, hyped, cut. Survived by a crafting table texture." },
+  { x: 2070, y: 600, bare: 1, title: "RIP FISHING", text: "'Next patch' since launch. The pond is still a rectangle." },
+  { x: 2150, y: 600, bare: 1, title: "RIP HOUSING", text: "It was just the front of a house. Like the one in the tutorial." },
+  { x: 2230, y: 600, bare: 1, title: "RIP PVP", text: "Removed after the playtest. Nobody would say what happened." },
+  { x: 2160, y: 270, bare: 1, title: "CASTLE (WIREFRAME)", text: "The final dungeon. Budget ran out after the outline." },
+  { x: 1780, y: 930, bare: 1, title: "CRANE", text: "Building Area 3. Slowly. It hasn't moved since 2019." },
   { x: 2000, y: 1000, title: "ROCK (PLACEHOLDER)", text: "Every rock out here is a grey box. Art is 'in progress'." },
   { x: 1180, y: 920, title: "QUEST BOARD", text: "Kill slimes. Reward: you killed slimes." },
   { x: 430, y: 470, title: "HOUSE", text: "It's only the front. Like most of the game." },
@@ -180,6 +186,64 @@ function rng(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; 
 const R = rng(7), FLOWERS = [], BUSHES = [];
 for (let i = 0; i < 140; i++) FLOWERS.push({ x: R() * W, y: R() * H, c: ['#ffe57a', '#ff9bd2', '#ffffff', '#9fd3ff'][Math.floor(R() * 4)] });
 for (let i = 0; i < 26; i++) { const x = 60 + R() * (W - 120), y = 60 + R() * (H - 120); if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > 160) BUSHES.push({ x, y, r: 14 + R() * 12 }); }
+// ---------- the art pass: each shipped patch paints part of the world into finished art ----------
+// The field is 6 zones. A zone stays flat placeholder art until its patch ships, then it's painted for good.
+const ZONES = [
+  { x: 520, y: 600, w: 520, h: 600, at: 1, name: 'the middle field' },
+  { x: 520, y: 0, w: 520, h: 600, at: 3, name: 'the north meadow' },
+  { x: 0, y: 0, w: 520, h: 600, at: 5, name: 'the house lot' },
+  { x: 0, y: 600, w: 520, h: 600, at: 7, name: 'the south-west' },
+  { x: 1040, y: 0, w: 520, h: 600, at: 9, name: 'the east field' },
+  { x: 1040, y: 600, w: 520, h: 600, at: 11, name: 'the fence line' },
+];
+const A2_PAINT_AT = 13; // Area 2's art ships with version 1.0 (patch index 12 is the launch)
+const paintCache = new Map();
+const zonePainted = (z) => patch >= z.at;
+function paintZone(z) { // draws the finished grass, path and plaza for one zone into an offscreen canvas, once
+  if (paintCache.has(z)) return paintCache.get(z);
+  const sc = Math.min(1.5, DPR), c = document.createElement('canvas'); c.width = Math.ceil(z.w * sc); c.height = Math.ceil(z.h * sc);
+  const g = c.getContext('2d'); g.scale(sc, sc); g.translate(-z.x, -z.y);
+  const r = rng(Math.floor(z.x * 7 + z.y * 13 + 1));
+  const area2 = z.a2;
+  // ground
+  const base = g.createLinearGradient(z.x, z.y, z.x + z.w, z.y + z.h);
+  if (area2) { base.addColorStop(0, '#8b7a5c'); base.addColorStop(1, '#7a6a4e'); } else { base.addColorStop(0, '#5cad52'); base.addColorStop(1, '#4f9c47'); }
+  g.fillStyle = base; g.fillRect(z.x, z.y, z.w, z.h);
+  for (let i = 0; i < 40; i++) { const x = z.x + r() * z.w, y = z.y + r() * z.h, rr = 30 + r() * 70; g.fillStyle = area2 ? `rgba(60,45,25,${0.05 + r() * 0.06})` : (r() < 0.5 ? `rgba(30,90,30,${0.06 + r() * 0.06})` : `rgba(170,230,120,${0.05 + r() * 0.05})`); g.beginPath(); g.ellipse(x, y, rr, rr * 0.6, r() * 3, 0, 7); g.fill(); }
+  if (area2) {
+    for (let i = 0; i < z.w * z.h / 60; i++) { const x = z.x + r() * z.w, y = z.y + r() * z.h; g.fillStyle = ['#a39375', '#6b5c42', '#b8aa8c', '#5e513b'][Math.floor(r() * 4)]; g.fillRect(x, y, 2 + r() * 2, 2 + r() * 2); }
+  } else {
+    // grass blades
+    for (let i = 0; i < z.w * z.h / 45; i++) { const x = z.x + r() * z.w, y = z.y + r() * z.h, h = 3 + r() * 5, lean = (r() - 0.5) * 3; g.strokeStyle = ['#3f8a3a', '#6cc061', '#4c9a44', '#7fd06f', '#367a33'][Math.floor(r() * 5)]; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + lean, y - h); g.stroke(); }
+    // flower clusters
+    for (let i = 0; i < 18; i++) { const cx0 = z.x + r() * z.w, cy0 = z.y + r() * z.h, col = ['#fff3a6', '#ffb3d9', '#ffffff', '#b8e0ff', '#ffcf7a'][Math.floor(r() * 5)]; for (let k = 0; k < 6; k++) { const x = cx0 + (r() - 0.5) * 30, y = cy0 + (r() - 0.5) * 20; g.fillStyle = col; for (let p = 0; p < 5; p++) { const a = p * 1.256; g.beginPath(); g.arc(x + Math.cos(a) * 2, y + Math.sin(a) * 2, 1.6, 0, 7); g.fill(); } g.fillStyle = '#e8a33a'; g.beginPath(); g.arc(x, y, 1.1, 0, 7); g.fill(); } }
+    // pebbles
+    for (let i = 0; i < 14; i++) { const x = z.x + r() * z.w, y = z.y + r() * z.h; g.fillStyle = 'rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(x + 1, y + 2, 4, 2, 0, 0, 7); g.fill(); g.fillStyle = '#b9b4a6'; g.beginPath(); g.ellipse(x, y, 4, 2.6, 0, 0, 7); g.fill(); }
+    // the road to the fence: packed dirt with pebbles and grassy edges
+    const py = SPAWN.y - 4, ph = 48;
+    g.fillStyle = '#c7a873'; g.fillRect(SPAWN.x, py, FENCE_X - SPAWN.x, ph);
+    for (let i = 0; i < 900; i++) { const x = SPAWN.x + r() * (FENCE_X - SPAWN.x), y = py + r() * ph; g.fillStyle = ['#b39360', '#d8bd8a', '#a5865a'][Math.floor(r() * 3)]; g.fillRect(x, y, 2, 2); }
+    for (let x = SPAWN.x; x < FENCE_X; x += 6) for (const y of [py, py + ph]) { g.strokeStyle = '#4c9a44'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x + r() * 4, y + (y === py ? 2 : -2)); g.lineTo(x + r() * 6, y + (y === py ? -4 : 4)); g.stroke(); }
+    // the spawn plaza: cobblestones
+    g.save(); g.beginPath(); g.arc(SPAWN.x, SPAWN.y, 110, 0, 7); g.clip();
+    g.fillStyle = '#b8a27a'; g.fillRect(SPAWN.x - 110, SPAWN.y - 110, 220, 220);
+    for (let y = SPAWN.y - 110; y < SPAWN.y + 110; y += 12) for (let x = SPAWN.x - 110 + ((y / 12) % 2) * 7; x < SPAWN.x + 110; x += 14) { g.fillStyle = ['#cdb88f', '#c2ab80', '#d6c39c'][Math.floor(r() * 3)]; g.beginPath(); g.roundRect(x + 1, y + 1, 12, 10, 3); g.fill(); }
+    g.restore();
+    g.strokeStyle = '#8e7a55'; g.lineWidth = 3; g.beginPath(); g.arc(SPAWN.x, SPAWN.y, 110, 0, 7); g.stroke();
+  }
+  paintCache.set(z, c); return c;
+}
+const A2_ZONE = { x: 1560, y: 0, w: 840, h: 1200, a2: true };
+function drawPaintedTree(b, now) {
+  const sway = Math.sin(now / 900 + b.x) * 1.5;
+  cx.fillStyle = 'rgba(0,0,0,.2)'; cx.beginPath(); cx.ellipse(b.x + 4, b.y + b.r * 0.9, b.r * 1.1, b.r * 0.45, 0, 0, 7); cx.fill();
+  cx.fillStyle = '#6b4a2a'; cx.fillRect(b.x - 3, b.y, 6, b.r * 0.9);
+  const layers = [[0, 0, 1, '#2f7a34'], [-0.35, -0.2, 0.7, '#3d9440'], [0.3, -0.35, 0.6, '#46a648'], [-0.05, -0.55, 0.45, '#5dbb55']];
+  for (const [dx, dy, k, col] of layers) { const x = b.x + dx * b.r + sway * k, y = b.y - b.r * 0.4 + dy * b.r; const gr = cx.createRadialGradient(x - b.r * k * 0.3, y - b.r * k * 0.3, 1, x, y, b.r * k); gr.addColorStop(0, col); gr.addColorStop(1, '#245f2a'); cx.fillStyle = gr; cx.beginPath(); cx.arc(x, y, b.r * k, 0, 7); cx.fill(); }
+}
+// where in the world is a point: which zone, and is it painted
+const zoneAt = (x, y) => ZONES.find((z) => x >= z.x && x < z.x + z.w && y >= z.y && y < z.y + z.h);
+let paintWipe = null; // { z, t } a zone being painted right now
 const SLIME_NAMES = ["SLIME_FINAL", "SLIME_FINAL_v2", "SLIME_FINAL_v2_ACTUAL", "slime (placeholder)", "slime_copy(3)", "SLIME_DO_NOT_SHIP"];
 const BOSS = 99, BOSS2 = 97, TODO = 98, FAST = 10, BIG = 11, LAG = 12, BUG = 13, FENCE_X = 1560;
 const HOF_AT = { x: 690, y: 430 }, SHOP_AT = { x: 1030, y: 580 }, FOUNTAIN_AT = { x: 1000, y: 380 }, NPC_AT = { x: 560, y: 520 };
@@ -206,7 +270,7 @@ function connect() {
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.t === 'you') { myId = m.id; W = m.w; H = m.h; total = m.total; $('status').classList.add('hide'); }
-    else if (m.t === 'full') { $('status').textContent = 'The server is full. An MMO with a queue. Very authentic. Try again soon.'; }
+    else if (m.t === 'full') { $('status').textContent = m.why ? 'Too many tabs open from one place. Close a few and reload.' : 'The server is full. An MMO with a queue. Very authentic. Try again soon.'; }
     else if (m.t === 's') onSnap(m);
     else if (m.t === 'loot') onLoot(m.item, m.x, m.y, m.from, m.why);
     else if (m.t === 'key') { myKey = m.key; store.set('ut_key', m.key); }
@@ -224,7 +288,7 @@ function connect() {
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
 function toMap(arr, keys) { const out = new Map(); for (const a of arr) { const o = {}; keys.forEach((k, i) => o[k] = a[i]); out.set(o.id, o); } return out; }
-const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills', 'wear', 'look', 'bot', 'ot'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind'];
+const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills', 'wear', 'look', 'bot', 'ot', 'pid'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind'];
 function onSnap(m) {
   snapA = snapB || { p: new Map(), m: new Map() };
   snapB = { p: toMap(m.p, PK), m: toMap(m.m, MK) };
@@ -234,7 +298,7 @@ function onSnap(m) {
   snapAt = performance.now();
   total = m.total;
   if (m.fz) { const was = fence[2]; fence = m.fz; $('a2').style.display = fence[2] ? '' : 'none'; if (fence[2]) $('a2').textContent = `AREA 2 OPEN: ${Math.floor(fence[2] / 60)}:${String(fence[2] % 60).padStart(2, '0')}`; }
-  if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Tap the Shop button. Kills give coins.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch]; $('pt').textContent = `Patch 0.0.${patch + 1}${nx ? ': ' + nx.tease : ''} · ${m.pa[1]}/${m.pa[2]}`; $('pb').firstChild.style.width = (100 * m.pa[1] / m.pa[2]) + '%'; updateActions(); }
+  if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Tap the Shop button. Kills give coins.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch], launch = patch === PATCHES.length; $('pt').textContent = launch ? (m.pa[1] >= m.pa[2] ? `1.0 LAUNCH: beat RELEASE_CANDIDATE_1.0 with ${LAUNCH_CROWD}+ people` : `Next: 1.0 LAUNCH · ${m.pa[1]}/${m.pa[2]} · helpers ${m.pa[3] || 0}/${m.pa[4] || 5}+`) : `Patch ${patchName(patch)}${nx ? ': ' + nx.tease : ''} · ${m.pa[1]}/${m.pa[2]} · helpers ${m.pa[3] || 0}/${m.pa[4] || 5}+`; $('pb').firstChild.style.width = (100 * m.pa[1] / m.pa[2]) + '%'; updateActions(); }
   const bots = [...snapB.p.values()].filter((q) => q.bot).length;
   $('on').textContent = m.n + (bots ? ` (+${bots} bot${bots > 1 ? 's' : ''})` : ''); $('tot').textContent = total.toLocaleString();
   for (const e of m.e) onEvent(e);
@@ -250,7 +314,7 @@ function nameOf(id) { const p = snapB && snapB.p.get(id); return p ? p.name : 's
 function onEvent(e) {
   const now = performance.now();
   if (e.e === 'sys') log(e.text, true);
-  else if (e.e === 'say' && mutedNames.has(nameOf(e.id))) {}
+  else if (e.e === 'say' && isMuted(snapB.p.get(e.id))) {}
   else if (e.e === 'say') { bubbles.set(e.id, { text: e.text, until: now + 6000 }); log(null, false, nameOf(e.id), e.text); }
   else if (e.e === 'hit') {
     swings.set(e.by, now); slimeHit.set(e.id, now);
@@ -274,7 +338,9 @@ function onEvent(e) {
   else if (e.e === 'lvl' && e.id === myId) { sfx('lvl'); for (let i = 0; i < 30; i++) { const me = snapB.p.get(myId); if (me) fx.push({ x: me.x, y: me.y, vx: Math.cos(i / 30 * 6.28) * 200, vy: Math.sin(i / 30 * 6.28) * 200 - 80, dot: true, sz: 5, c: '#ffd34d', t: now, life: 800 }); } }
   if (e.e === 'lvl' && e.id === myId) toast(e.cap ? 'LEVEL 5 (MAX)' : 'LEVEL ' + e.lvl + '!', e.cap ? "That's every level they made." : ['Nothing new unlocked. The skill tree is a picture.', '+2 max HP. That was the whole budget.', 'Your armor is the same. It was always a texture.'][(e.lvl - 2) % 3]);
   else if (e.e === 'lvl') log(`${nameOf(e.id)} reached level ${e.lvl}.`, true);
-  if (e.e === 'ot' && e.id === myId) { sfx('lvl'); toast('OVERTIME ★' + e.ot, ['Unpaid. Still counts.', 'Nobody asked you to stay late. You stayed.', 'HR has been notified. HR is a placeholder.'][e.ot % 3]); }
+  const otr = OT_REWARDS.find((r) => r.ot === e.ot);
+  if (e.e === 'ot' && e.id === myId && otr) { sfx('title'); toast('OVERTIME REWARD: ' + otr.name.toUpperCase(), otr.text); }
+  else if (e.e === 'ot' && e.id === myId) { sfx('lvl'); toast('OVERTIME ★' + e.ot, ['Unpaid. Still counts.', 'Nobody asked you to stay late. You stayed.', 'HR has been notified. HR is a placeholder.'][e.ot % 3]); }
   else if (e.e === 'ot' && e.ot % 10 === 0) log(`${nameOf(e.id)} reached overtime ★${e.ot}.`, true);
   else if (e.e === 'fhit') {
     swings.set(e.by, now); fenceShake = now; const mine = e.by === myId;
@@ -284,7 +350,7 @@ function onEvent(e) {
   }
   else if (e.e === 'area2') {
     shake(e.open ? 10 : 5); sfx('fanfare');
-    if (e.open) { toast('THE FENCE IS DOWN', 'AREA 2 is open for 3 minutes. Go! There is almost nothing there.'); for (let i = 0; i < 60; i++) fx.push({ x: FENCE_X, y: 60 + Math.random() * (H - 120), vx: (Math.random() - .3) * 300, vy: (Math.random() - .7) * 200, dot: true, c: '#d9c39b', t: now, life: 900 }); }
+    if (e.open) { toast('THE FENCE IS DOWN', 'AREA 2 is open for 5 minutes. Go! Its slimes drop better loot.'); for (let i = 0; i < 60; i++) fx.push({ x: FENCE_X, y: 60 + Math.random() * (H - 120), vx: (Math.random() - .3) * 300, vy: (Math.random() - .7) * 200, dot: true, c: '#d9c39b', t: now, life: 900 }); }
     else toast('FENCE REBUILT', 'The devs noticed. Everyone in Area 2 was sent back.');
   }
   else if (e.e === 'lag') { lagAt.set(e.id, now); const s2 = snapB.m.get(e.id); if (s2) fx.push({ x: s2.x, y: s2.y - 30, text: 'lag', c: '#9fd3ff', t: now, life: 600, big: 0.8 }); }
@@ -302,7 +368,8 @@ function onEvent(e) {
   else if (e.e === 'finished') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 180, c: '#ffd700', t: now, life: 900 }); for (let i = 0; i < 60; i++) fx.push({ x: p2.x, y: p2.y, vx: (Math.random() - .5) * 600, vy: (Math.random() - .8) * 600, dot: true, sz: 5, c: '#ffd700', t: now, life: 1200 }); } if (e.id !== myId) toast('SOMEONE FINISHED SOMETHING', `${nameOf(e.id)} earned ${ITEMS[e.item].name}${e.n ? ' (#' + e.n + ' ever)' : ''}. Go look.`); }
   else if (e.e === 'spin') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 110, c: '#ffffff', t: now, life: 350 }); if (e.id === myId) { sfx('crit'); shake(e.hit ? 6 : 2); } } }
   else if (e.e === 'event') { toast(e.kind === 'rain' ? 'WORLD EVENT: SLIME RAIN' : e.kind === 'hotfix' ? 'HOTFIX DEPLOYED' : 'WORLD EVENT: BUG BOUNTY', e.kind === 'rain' ? 'A spawn loop is stuck. Double loot for 45 seconds.' : e.kind === 'hotfix' ? 'Double loot for 5 minutes while the devs look the other way.' : 'THE BUG is loose. Hit it before it escapes to production.'); sfx('fanfare'); shake(6); }
-  else if (e.e === 'patch') { toast('PATCH ' + e.name + ' SHIPPED', e.note); sfx('fanfare'); }
+  else if (e.e === 'patch') { const pz = ZONES.find((z) => z.at === e.n); if (pz) { paintWipe = { z: pz, t: now }; for (let i = 0; i < 80; i++) fx.push({ x: pz.x + Math.random() * pz.w, y: pz.y + Math.random() * pz.h, vx: 0, vy: -40, dot: true, sz: 4, c: ['#fff3a6', '#ffb3d9', '#b8e0ff', '#7fd06f'][i % 4], t: now + Math.random() * 1400, life: 900 }); }
+    toast(e.launch ? 'VERSION 1.0 HAS SHIPPED' : 'PATCH ' + e.name + ' SHIPPED', e.note + (pz ? ` Art pass: ${pz.name} is now painted.` : e.n === A2_PAINT_AT ? ' Art pass: Area 2 is painted.' : '')); sfx('fanfare'); if (e.launch) { shake(16); setTimeout(() => sfx('fanfare'), 600); } }
   else if (e.e === 'die' && e.id === myId) { toast('YOU DIED', 'Respawning at the only spawn point.'); sfx('die'); shake(10); }
 }
 function log(text, sys, who, said) {
@@ -447,6 +514,7 @@ function drawHat(g, i, now) {
     case 'halo': g.strokeStyle = 'rgba(255,240,150,.95)'; g.lineWidth = 3; g.shadowColor = '#fff3a0'; g.shadowBlur = 8; g.beginPath(); g.ellipse(0, -24 + Math.sin(now / 400) * 1.5, 11, 4, 0, 0, 7); g.stroke(); g.shadowBlur = 0; break;
     case 'wizard': g.fillStyle = '#4b2bbf'; g.beginPath(); g.moveTo(-15, -11); g.lineTo(15, -11); g.lineTo(4, -24); g.lineTo(9, -42); g.lineTo(-6, -24); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#ffd34d'; g.font = '700 6px ui-monospace'; g.textAlign = 'center'; g.fillText('404', 0, -16); break;
     case 'crt': g.fillStyle = '#cfc6a8'; g.beginPath(); g.roundRect(-16, -38, 32, 26, 3); g.fill(); g.stroke(); g.fillStyle = '#16301e'; g.fillRect(-12, -35, 24, 18); g.fillStyle = '#5cff7a'; g.font = '700 5px ui-monospace'; g.textAlign = 'left'; g.fillText('LOADING', -11, -27); g.fillRect(-11, -24, ((now / 40) % 22), 3); break;
+    case 'hardhat': g.fillStyle = '#ffb81f'; g.beginPath(); g.arc(0, -13, 13, Math.PI, 0); g.closePath(); g.fill(); g.stroke(); g.fillRect(-17, -14, 34, 4); g.strokeRect(-17, -14, 34, 4); g.fillStyle = '#e09a00'; g.fillRect(-2, -26, 4, 12); g.fillStyle = '#1b1f17'; g.font = '700 4px system-ui'; g.textAlign = 'center'; g.fillText('WIP', 0, -17); break;
     case 'realhat': { const gr = g.createLinearGradient(-12, -36, 12, -14); gr.addColorStop(0, '#7a4a20'); gr.addColorStop(0.5, '#c58a4a'); gr.addColorStop(1, '#5a3412'); g.fillStyle = gr; g.beginPath(); g.ellipse(0, -14, 17, 4.5, 0, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.moveTo(-9, -14); g.bezierCurveTo(-10, -34, 10, -34, 9, -14); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#2b1a0c'; g.fillRect(-9, -19, 18, 3); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-6, -30, 2, 10); const t = (now / 500) % 1; g.fillStyle = `rgba(255,236,150,${1 - t})`; g.beginPath(); g.arc(10, -34 - t * 8, 2, 0, 7); g.fill(); break; }
   }
   g.restore();
@@ -488,6 +556,7 @@ function drawBack(g, i, now, moving) {
       g.stroke(); if (it.id === 'realcape') { g.strokeStyle = '#ffd700'; g.beginPath(); g.moveTo(-11, -6); g.lineTo(11, -6); g.stroke(); }
       break; }
     case 'pack': g.fillStyle = '#7a5530'; g.beginPath(); g.roundRect(-11, -6, 22, 22, 4); g.fill(); g.stroke(); g.fillStyle = '#5a3a1a'; g.fillRect(-8, 2, 16, 5); g.fillStyle = '#fff'; g.font = '700 4px system-ui'; g.textAlign = 'center'; g.fillText('0/0', 0, 13); break;
+    case 'scaffold': g.strokeStyle = '#d98a1f'; g.lineWidth = 2; g.beginPath(); for (const x of [-14, 14]) { g.moveTo(x, -16); g.lineTo(x, 18); } for (const y of [-14, 0, 14]) { g.moveTo(-14, y); g.lineTo(14, y); } g.moveTo(-14, -14); g.lineTo(14, 0); g.moveTo(-14, 0); g.lineTo(14, 14); g.stroke(); g.fillStyle = '#9b6b3c'; g.fillRect(-16, -1, 32, 3); break;
     case 'hoodie': g.fillStyle = '#3a3f4a'; g.beginPath(); g.arc(0, -4, 17, Math.PI * 0.9, Math.PI * 2.1); g.lineTo(13, 12); g.lineTo(-13, 12); g.closePath(); g.fill(); g.stroke(); break;
     case 'jetpack': g.fillStyle = '#9aa3ad'; for (const x of [-12, 4]) { g.beginPath(); g.roundRect(x, -8, 8, 20, 3); g.fill(); g.stroke(); } if ((now / 300 | 0) % 4 === 0) { g.fillStyle = 'rgba(200,200,200,.6)'; g.beginPath(); g.arc(-8, 18, 3, 0, 7); g.arc(8, 19, 2.5, 0, 7); g.fill(); } g.fillStyle = '#ff3b3b'; g.font = '700 4px system-ui'; g.textAlign = 'center'; g.fillText('EMPTY', 0, 4); break;
     case 'wings': { const f = Math.sin(now / 180) * 0.25; g.strokeStyle = '#555'; g.lineWidth = 1; for (const sx of [-1, 1]) { g.save(); g.scale(sx, 1); g.rotate(-f); for (const o of [0, 1]) { g.beginPath(); g.moveTo(6, -4 + o); g.quadraticCurveTo(26, -26 + o, 34, -8 + o); g.quadraticCurveTo(24, -4, 26, 6 + o); g.quadraticCurveTo(16, 0, 6, 4 + o); g.stroke(); } g.restore(); } break; }
@@ -515,6 +584,7 @@ function spawnTrailDot(d, g, k) { // draw one trail bit; k = 0..1 age
   if (d.id === 'tpix') { g.fillStyle = TRAIL_LOOK.tpix[d.k % 4]; g.fillRect(d.x - 2, d.y - 2, 4, 4); }
   else if (d.id === 'trainbow') { g.fillStyle = `hsl(${(d.k * 40) % 360} 90% 60%)`; g.beginPath(); g.arc(d.x, d.y, 5 * a + 1, 0, 7); g.fill(); }
   else if (d.id === 'tcheck') { checker(g, d.x - 4, d.y - 4, 8, 8, 4); }
+  else if (d.id === 'tcaution') { g.save(); g.translate(d.x, d.y); g.rotate((d.k % 3 - 1) * 0.3); g.fillStyle = '#ffd400'; g.fillRect(-7, -2.5, 14, 5); g.fillStyle = '#1b1f17'; for (let x = -7; x < 7; x += 4) { g.beginPath(); g.moveTo(x, 2.5); g.lineTo(x + 2, -2.5); g.lineTo(x + 3.5, -2.5); g.lineTo(x + 1.5, 2.5); g.fill(); } g.restore(); }
   else { const words = TRAIL_LOOK[d.id] || ['?']; g.font = (d.id === 'thearts' ? '900 11px' : '700 8px') + ' ui-monospace,Consolas,monospace'; g.textAlign = 'center'; g.fillStyle = d.id === 'terr' ? '#ff6b6b' : d.id === 'thearts' ? '#ff7bd8' : d.id === 'realtrail' ? '#ffd700' : '#e8ffe0'; g.fillText(words[d.k % words.length], d.x, d.y - k * 8); }
   g.globalAlpha = 1;
 }
@@ -674,7 +744,7 @@ cv.addEventListener('pointerdown', (ev) => {
   if ($('chatbox').classList.contains('open')) closeChat();
   const cam = camera(), wx = ev.clientX + cam.x, wy = ev.clientY + cam.y;
   let best = null, bd = 1e9;
-  if (snapB) for (const s of snapB.m.values()) { const q = interp('m', s.id); const r = radiusOf(s.kind) + (s.kind === BOSS2 ? 40 : 22); const d = Math.hypot(q.x - wx, q.y - wy); if (d < r && d < bd) { bd = d; best = s; } }
+  if (snapB) for (const s of snapB.m.values()) { const q = interp('m', s.id); const r = radiusOf(s.kind) + (s.kind === BOSS2 || s.kind === RELEASE ? 40 : 22); const d = Math.hypot(q.x - wx, q.y - wy); if (d < r && d < bd) { bd = d; best = s; } }
   if (!best && snapB) { for (const q of snapB.p.values()) { if (q.id === myId) continue; const qq = interp('p', q.id); if (qq && Math.hypot(qq.x - wx, qq.y - wy) < 18) { openCard(qq); return; } } }
   if (!best && !fence[2] && Math.abs(wx - FENCE_X) < 28) { send({ t: 'atk', id: 'fence' }); tapMark = { x: FENCE_X, y: wy, t: performance.now(), atk: true }; return; }
   if (best) { send({ t: 'atk', id: best.id }); tapMark = { x: best.x, y: best.y, t: performance.now(), atk: true }; }
@@ -701,9 +771,11 @@ function updateActions() {
   const acts = [];
   const d = (o) => Math.hypot(me.x - o.x, me.y - o.y);
   if (isUnlocked(patch, 'shop') && d(SHOP_AT) < 150) acts.push(['🛒 Shop', openShop]);
-  if (isUnlocked(patch, 'fountain') && d(FOUNTAIN_AT) < 130) { acts.push([`🪙 Wish (${WISH_COST})`, () => send({ t: 'wish' })]); acts.push([`🍀 Lucky Wish: a Rare (${LUCKY_WISH})`, () => send({ t: 'lucky' })]); }
+  if (isUnlocked(patch, 'fountain') && d(FOUNTAIN_AT) < 130) { acts.push([`🪙 Wish (${WISH_COST})`, () => send({ t: 'wish' })]); }
   if (d(HOF_AT) < 120) acts.push(['🏆 Hall of Fame', () => send({ t: 'hof' })]);
   if (isUnlocked(patch, 'quests') && d(NPC_AT) < 130) acts.push([myQuest && myQuest.have >= QUESTS[myQuest.i].n ? '✅ Hand in quest' : myQuest ? '📜 Quest (in progress)' : '📜 Get a quest', () => send({ t: 'quest' })]);
+  // walking away from the shop or the Hall of Fame closes its panel
+  if ($('shopp').classList.contains('open') && d(SHOP_AT) > 200 && d(HOF_AT) > 200) $('shopp').classList.remove('open');
   const key = acts.map((a) => a[0]).join('|');
   if (key === actKey) return; actKey = key;
   const el = $('act'); el.innerHTML = '';
@@ -743,7 +815,10 @@ function renderShop() {
 $('shopx').onclick = () => $('shopp').classList.remove('open');
 
 // tapping another player opens their card: wave, give, mute, report
+// mutes are saved by account id, so a renamed troll stays muted
 let mutedNames = new Set(); try { mutedNames = new Set(JSON.parse(store.get('ut_muted') || '[]')); } catch {}
+const muteKey = (p) => p && (p.pid ? 'id:' + p.pid : p.name);
+const isMuted = (p) => !!p && (mutedNames.has(muteKey(p)) || mutedNames.has(p.name));
 let cardFor = null;
 function openCard(p) {
   cardFor = p.id; sfx('click');
@@ -752,14 +827,14 @@ function openCard(p) {
   const worn = (p.wear || []).filter((i) => i >= 0).map((i) => ITEMS[i].name);
   const wid = new Set((p.wear || []).filter((i) => i >= 0).map((i) => ITEMS[i].id)); const ws2 = SETS.find((x) => x.items.filter((id) => wid.has(id)).length >= 3); p.setName = ws2 && ws2.name;
   $('pcsub').textContent = `${t}Level ${p.lvl}${p.ot ? ' ★' + p.ot + ' overtime' : ''}${p.setName ? ' · Set: ' + p.setName : ''}${p.bot ? ' · a placeholder bot the devs added so it feels busy' : ''}. Wearing: ${worn.join(', ') || 'nothing (respect)'}.`;
-  $('pcmute').textContent = mutedNames.has(p.name) ? '🔊 Unmute' : '🔇 Mute';
+  $('pcmute').textContent = isMuted(p) ? '🔊 Unmute' : '🔇 Mute';
   for (const id of ['pcgive', 'pcreport']) $(id).style.display = p.bot ? 'none' : '';
   $('pcard').classList.add('open');
 }
 $('pcx').onclick = () => $('pcard').classList.remove('open');
 $('pcwave').onclick = () => { send({ t: 'emote', k: 0 }); $('pcard').classList.remove('open'); };
 $('pcgive').onclick = () => { giveTo = cardFor; $('pcard').classList.remove('open'); renderBag(); $('bagp').classList.add('open'); };
-$('pcmute').onclick = () => { const p = snapB.p.get(cardFor); if (!p) return; if (mutedNames.has(p.name)) mutedNames.delete(p.name); else mutedNames.add(p.name); store.set('ut_muted', JSON.stringify([...mutedNames])); $('pcmute').textContent = mutedNames.has(p.name) ? '🔊 Unmute' : '🔇 Mute'; };
+$('pcmute').onclick = () => { const p = snapB.p.get(cardFor); if (!p) return; if (isMuted(p)) { mutedNames.delete(muteKey(p)); mutedNames.delete(p.name); } else mutedNames.add(muteKey(p)); store.set('ut_muted', JSON.stringify([...mutedNames])); $('pcmute').textContent = isMuted(p) ? '🔊 Unmute' : '🔇 Mute'; };
 $('pcreport').onclick = () => { send({ t: 'report', id: cardFor }); $('pcard').classList.remove('open'); };
 for (const b of document.querySelectorAll('#emotes button')) b.onclick = (e) => { e.stopPropagation(); send({ t: 'emote', k: +b.dataset.k }); };
 
@@ -784,6 +859,14 @@ function bubble(x, y, text, col) {
   cx.fillStyle = '#1b1f17'; cx.textAlign = 'center';
   lines.forEach((l, i) => cx.fillText(l, bx + w / 2, by + 17 + i * lh));
 }
+function drawOtExtras(p, now) {
+  const ot = p.ot || 0; if (ot < 20) return;
+  cx.save(); cx.translate(p.x, p.y);
+  if (ot >= 20) { const t = (now / 900 + p.id * 0.37) % 1; cx.globalAlpha = 1 - t; cx.fillStyle = '#7fd4ff'; cx.beginPath(); cx.ellipse(13, -14 + t * 18, 2.5, 3.5, 0, 0, 7); cx.fill(); cx.globalAlpha = 1; }
+  if (ot >= 30) { const a = now / 700; cx.save(); cx.translate(Math.cos(a) * 30, Math.sin(a) * 12 - 6); cx.fillStyle = '#fff'; cx.strokeStyle = '#1b1f17'; cx.lineWidth = 1.2; cx.fillRect(-4, -5, 8, 9); cx.strokeRect(-4, -5, 8, 9); cx.beginPath(); cx.arc(5, -1, 2.5, -1.4, 1.4); cx.stroke(); cx.restore(); }
+  if (ot >= 60) for (let i = 0; i < 3; i++) { const a = -now / 900 + i * 2.09; cx.save(); cx.translate(Math.cos(a) * 34, Math.sin(a) * 16 - 4); cx.rotate(Math.sin(now / 400 + i) * 0.3); cx.fillStyle = '#ffe36b'; cx.fillRect(-5, -5, 10, 10); cx.fillStyle = '#7a6a20'; cx.fillRect(-3, -2, 6, 1); cx.fillRect(-3, 1, 4, 1); cx.restore(); }
+  cx.restore();
+}
 function drawPlayer(p, now) {
   const isMe = p.id === myId, sw = swings.get(p.id) || 0, swing = now - sw < 220 ? (now - sw) / 220 : 0, h = now - (hurt.get(p.id) || 0) < 200;
   cx.save(); cx.translate(p.x, p.y);
@@ -793,6 +876,9 @@ function drawPlayer(p, now) {
   const em = emotes.get(p.id), emk = em && now - em.t < 2600 ? em.k : -1;
   if (emk === 1) { cx.translate(0, -Math.abs(Math.sin(now / 120)) * 6); cx.rotate(Math.sin(now / 120) * 0.25); }
   if (emk === 3) { cx.translate(0, 6); cx.scale(1.1, 0.85); }
+  const ot = p.ot || 0;
+  if (ot >= 40) { cx.save(); for (let i = 0; i < 6; i++) { const a = now / 300 + i * 1.05, fl = 0.6 + 0.4 * Math.sin(now / 90 + i * 2); cx.fillStyle = `rgba(255,${120 + i * 15},40,${0.35 * fl})`; cx.beginPath(); cx.ellipse(Math.cos(a) * 14, 8 - fl * 10, 5, 9 * fl, 0, 0, 7); cx.fill(); } cx.restore(); }
+  if (ot >= 80) { cx.save(); cx.globalAlpha = 0.25 + 0.1 * Math.sin(now / 200); cx.strokeStyle = '#5cff7a'; cx.lineWidth = 2; cx.beginPath(); cx.arc(0, 0, 26 + Math.sin(now / 150) * 2, 0, 7); cx.stroke(); cx.restore(); }
   const setGlow = p.setGlow;
   if (setGlow) { cx.save(); cx.globalAlpha = 0.35 + Math.sin(now / 250) * 0.15; cx.fillStyle = setGlow; cx.shadowColor = setGlow; cx.shadowBlur = 18; cx.beginPath(); cx.arc(0, 0, 22, 0, 7); cx.fill(); cx.restore(); }
   if (p.back >= 0) drawBack(cx, p.back, now, 0);
@@ -814,22 +900,23 @@ function drawTag(p) {
   const ti = p.look && p.look[3];
   if (ti > 0 && TITLES[ti]) { const t = '«' + TITLES[ti].name + '»'; cx.font = 'italic 600 10px system-ui,sans-serif'; cx.strokeText(t, p.tagX, p.tagY + 12); cx.fillStyle = '#bfe3ff'; cx.fillText(t, p.tagX, p.tagY + 12); }
 }
-const KR = { [BOSS]: 42, [BOSS2]: 46, [TODO]: 20, [FAST]: 11, [BIG]: 27, [BUG]: 14 };
+const RELEASE = 96;
+const KR = { [RELEASE]: 54, [BOSS]: 42, [BOSS2]: 46, [TODO]: 20, [FAST]: 11, [BIG]: 27, [BUG]: 14 };
 const radiusOf = (k) => KR[k] || 16;
-const KNAME = { [BOSS]: 'MISSING_TEXTURE', [BOSS2]: 'FINAL_BOSS_v0.1', [TODO]: 'ENEMY_TODO', [FAST]: 'slime_fast (unbalanced)', [BIG]: 'SLIME_BIG_PLACEHOLDER', [LAG]: 'lag_slime (ping 999)', [BUG]: "THE BUG (won't fix)" };
+const KNAME = { [RELEASE]: 'RELEASE_CANDIDATE_1.0', [BOSS]: 'MISSING_TEXTURE', [BOSS2]: 'FINAL_BOSS_v0.1', [TODO]: 'ENEMY_TODO', [FAST]: 'slime_fast (unbalanced)', [BIG]: 'SLIME_BIG_PLACEHOLDER', [LAG]: 'lag_slime (ping 999)', [BUG]: "THE BUG (won't fix)" };
 function drawSlime(s, now) {
-  const k = s.kind, boss = k === BOSS, knight = k === BOSS2, todo = k === TODO, r = radiusOf(k), wob = Math.sin(now / (k === FAST ? 70 : 160) + s.id) * 0.08;
+  const k = s.kind, boss = k === BOSS, knight = k === BOSS2 || k === RELEASE, todo = k === TODO, r = radiusOf(k), wob = Math.sin(now / (k === FAST ? 70 : 160) + s.id) * 0.08;
   const ht = now - (slimeHit.get(s.id) || -1e9), sq = ht < 160 ? (1 - ht / 160) * 0.35 : 0, fl = ht < 70;
   const lagged = k === LAG && now - (lagAt.get(s.id) || -1e9) < 250;
   cx.save(); cx.translate(s.x + (ht < 120 || lagged ? (Math.random() - .5) * (lagged ? 10 : 4) : 0), s.y);
   cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(0, r * 0.75, r, r * 0.35, 0, 0, 7); cx.fill();
   if (knight) {
     // FINAL_BOSS_v0.1: a knight stuck in a T-pose. The animator quit.
-    cx.scale(1 + sq * 0.5, 1 - sq * 0.4);
+    cx.scale(1 + sq * 0.5, 1 - sq * 0.4); if (k === RELEASE) cx.scale(1.2, 1.2);
     cx.strokeStyle = '#1b1f17'; cx.lineWidth = 3;
-    cx.fillStyle = fl ? '#fff' : '#9aa3ad'; cx.fillRect(-58, -18, 116, 12); cx.strokeRect(-58, -18, 116, 12);
+    cx.fillStyle = fl ? '#fff' : k === RELEASE ? '#d4a017' : '#9aa3ad'; cx.fillRect(-58, -18, 116, 12); cx.strokeRect(-58, -18, 116, 12);
     cx.beginPath(); cx.roundRect(-24, -30, 48, 58, 8); cx.fill(); cx.stroke();
-    cx.fillStyle = fl ? '#fff' : '#c3cad2'; cx.beginPath(); cx.arc(0, -40, 18, 0, 7); cx.fill(); cx.stroke();
+    cx.fillStyle = fl ? '#fff' : k === RELEASE ? '#ffd700' : '#c3cad2'; cx.beginPath(); cx.arc(0, -40, 18, 0, 7); cx.fill(); cx.stroke();
     cx.fillStyle = '#1b1f17'; cx.fillRect(-12, -44, 24, 5); cx.fillStyle = '#ff3b3b'; cx.fillRect(-9, -43, 5, 3); cx.fillRect(4, -43, 5, 3);
     cx.fillStyle = '#d33'; cx.beginPath(); cx.moveTo(0, -58); cx.lineTo(8, -70); cx.lineTo(-4, -66); cx.fill();
     cx.fillStyle = '#e6eaf0'; cx.fillRect(52, -60, 6, 46); cx.strokeRect(52, -60, 6, 46);
@@ -863,7 +950,7 @@ function drawSlime(s, now) {
   const label = KNAME[k] || SLIME_NAMES[k] || 'slime', ly = s.y - r - (knight ? 34 : 8);
   const meP = snapB && snapB.p.get(myId);
   const showLabel = big || k === BUG || s.hp < s.max || (meP && Math.hypot(meP.x - s.x, meP.y - s.y) < 170);
-  if (showLabel) { cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, ly); cx.fillStyle = boss ? '#ff7bf0' : knight ? '#ffb0b0' : todo ? '#ffffff' : k === LAG ? '#cfe6ff' : '#e8ffe0'; cx.fillText(label, s.x, ly); }
+  if (showLabel) { cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, ly); cx.fillStyle = k === RELEASE ? '#ffd700' : boss ? '#ff7bf0' : knight ? '#ffb0b0' : todo ? '#ffffff' : k === LAG ? '#cfe6ff' : '#e8ffe0'; cx.fillText(label, s.x, ly); }
   if (s.hp < s.max || big) { const bw = big ? 90 : k === BIG ? 44 : 28; cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw, 5); cx.fillStyle = boss ? '#ff00dc' : knight ? '#ff5c5c' : '#7be36a'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw * Math.max(0, s.hp) / s.max, 5); }
 }
 function drawSign(s) {
@@ -876,17 +963,46 @@ function drawWorld(now) {
   // grass
   const T = 80;
   for (let y = 0; y < H; y += T) for (let x = 0; x < FENCE_X + T; x += T) { cx.fillStyle = ((x / T + y / T) % 2) ? '#4f9a4a' : '#55a24f'; cx.fillRect(x, y, T, T); }
-  // Area 2: nobody textured it. Editor grey with grid lines.
-  cx.fillStyle = '#4a4d53'; cx.fillRect(FENCE_X, 0, W - FENCE_X, H);
-  cx.strokeStyle = 'rgba(255,255,255,.12)'; cx.lineWidth = 1; cx.beginPath();
-  for (let x = FENCE_X; x <= W; x += 40) { cx.moveTo(x, 0); cx.lineTo(x, H); } for (let y = 0; y <= H; y += 40) { cx.moveTo(FENCE_X, y); cx.lineTo(W, y); } cx.stroke();
-  cx.font = '900 64px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.08)'; cx.fillText('AREA 2', (FENCE_X + W) / 2, 300); cx.font = '700 20px ui-monospace,Consolas,monospace'; cx.fillText('(work in progress)', (FENCE_X + W) / 2, 334);
-  for (const [x, y, r] of ROCKS) { cx.fillStyle = '#8a8d93'; cx.fillRect(x - r / 2, y - r / 2, r, r); cx.strokeStyle = '#2b2d31'; cx.lineWidth = 2; cx.strokeRect(x - r / 2, y - r / 2, r, r); cx.beginPath(); cx.moveTo(x - r / 2, y - r / 2); cx.lineTo(x + r / 2, y + r / 2); cx.moveTo(x + r / 2, y - r / 2); cx.lineTo(x - r / 2, y + r / 2); cx.stroke(); }
-  // path from spawn
-  cx.fillStyle = '#c9b27c'; cx.beginPath(); cx.arc(SPAWN.x, SPAWN.y, 110, 0, 7); cx.fill(); cx.setLineDash([8, 8]); cx.strokeStyle = 'rgba(255,255,255,.5)'; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
-  cx.fillRect(SPAWN.x, SPAWN.y - 4, FENCE_X - SPAWN.x, 48);
+  // flat path and plaza first, so painted zones cover them
+  cx.fillStyle = '#c9b27c'; cx.beginPath(); cx.arc(SPAWN.x, SPAWN.y, 110, 0, 7); cx.fill(); cx.fillRect(SPAWN.x, SPAWN.y - 4, FENCE_X - SPAWN.x, 48);
   for (const f of FLOWERS) { if (f.x > FENCE_X - 4) continue; cx.fillStyle = f.c; cx.fillRect(f.x, f.y, 3, 3); }
-  for (const b of BUSHES) { cx.fillStyle = '#2f6b3a'; cx.beginPath(); cx.arc(b.x, b.y, b.r, 0, 7); cx.fill(); cx.fillStyle = '#3d8a45'; cx.beginPath(); cx.arc(b.x - b.r * .25, b.y - b.r * .25, b.r * .6, 0, 7); cx.fill(); }
+  for (const z of ZONES) {
+    const wiping = paintWipe && paintWipe.z === z, k = wiping ? Math.min(1, (now - paintWipe.t) / 1600) : 1;
+    if (!zonePainted(z)) {
+      cx.font = '900 30px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.10)'; cx.fillText('ART: TODO', z.x + z.w / 2, z.y + z.h / 2 - 8);
+      cx.font = '700 14px ui-monospace,Consolas,monospace'; cx.fillText(`(painted in patch ${patchName(z.at - 1)})`, z.x + z.w / 2, z.y + z.h / 2 + 14);
+      continue;
+    }
+    const img = paintZone(z);
+    if (k < 1) { cx.save(); cx.beginPath(); cx.arc(z.x + z.w / 2, z.y + z.h / 2, Math.hypot(z.w, z.h) * 0.55 * k, 0, 7); cx.clip(); }
+    cx.drawImage(img, z.x, z.y, z.w, z.h);
+    if (k < 1) cx.restore();
+  }
+  // seams between painted and unpainted zones: the art team's dashed handoff line
+  cx.save(); cx.setLineDash([10, 8]); cx.strokeStyle = 'rgba(255,255,255,.35)'; cx.lineWidth = 2; cx.beginPath();
+  for (const a of ZONES) for (const b of ZONES) { if (a === b || zonePainted(a) === zonePainted(b) || !zonePainted(a)) continue;
+    if (a.x + a.w === b.x && a.y === b.y) { cx.moveTo(b.x, b.y); cx.lineTo(b.x, b.y + b.h); } if (b.x + b.w === a.x && a.y === b.y) { cx.moveTo(a.x, a.y); cx.lineTo(a.x, a.y + a.h); }
+    if (a.y + a.h === b.y && a.x === b.x) { cx.moveTo(b.x, b.y); cx.lineTo(b.x + b.w, b.y); } if (b.y + b.h === a.y && a.x === b.x) { cx.moveTo(a.x, a.y); cx.lineTo(a.x + a.w, a.y); } }
+  cx.stroke(); cx.restore();
+  // Area 2: nobody textured it (editor grey with grid lines) until version 1.0 ships its art
+  if (patch >= A2_PAINT_AT) { A2_ZONE.w = W - FENCE_X; cx.drawImage(paintZone(A2_ZONE), FENCE_X, 0, A2_ZONE.w, H); }
+  else {
+    cx.fillStyle = '#4a4d53'; cx.fillRect(FENCE_X, 0, W - FENCE_X, H);
+    cx.strokeStyle = 'rgba(255,255,255,.12)'; cx.lineWidth = 1; cx.beginPath();
+    for (let x = FENCE_X; x <= W; x += 40) { cx.moveTo(x, 0); cx.lineTo(x, H); } for (let y = 0; y <= H; y += 40) { cx.moveTo(FENCE_X, y); cx.lineTo(W, y); } cx.stroke();
+    cx.font = '900 64px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.08)'; cx.fillText('AREA 2', (FENCE_X + W) / 2, 300); cx.font = '700 20px ui-monospace,Consolas,monospace'; cx.fillText('(art ships with version 1.0)', (FENCE_X + W) / 2, 334);
+  }
+  // Area 2 landmarks: a wireframe castle, a crane, the cut content graveyard
+  cx.save(); cx.strokeStyle = 'rgba(160,220,255,.75)'; cx.lineWidth = 2; cx.setLineDash([6, 4]);
+  cx.strokeRect(2080, 160, 160, 110); for (const x of [2070, 2210]) cx.strokeRect(x, 110, 40, 160);
+  for (let x = 2070; x < 2250; x += 20) { cx.strokeRect(x, 100, 10, 10); } cx.beginPath(); cx.moveTo(2160, 270); cx.lineTo(2160, 220); cx.arc(2160, 220, 20, Math.PI, 0); cx.lineTo(2180, 270); cx.stroke(); cx.restore();
+  cx.strokeStyle = '#d98a1f'; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(1760, 960); cx.lineTo(1760, 760); cx.lineTo(1900, 760); cx.moveTo(1760, 790); cx.lineTo(1790, 760); cx.moveTo(1880, 760); cx.lineTo(1880, 830); cx.stroke(); cx.fillStyle = '#8a8d93'; cx.fillRect(1868, 830, 24, 18);
+  for (const gx of [1990, 2070, 2150, 2230]) { cx.fillStyle = '#9a9ea6'; cx.strokeStyle = '#2b2d31'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(gx - 16, 580); cx.lineTo(gx - 16, 556); cx.arc(gx, 556, 16, Math.PI, 0); cx.lineTo(gx + 16, 580); cx.closePath(); cx.fill(); cx.stroke(); cx.fillStyle = '#2b2d31'; cx.font = '800 9px ui-monospace,Consolas,monospace'; cx.textAlign = 'center'; cx.fillText('RIP', gx, 562); }
+  cx.font = '700 12px ui-monospace,Consolas,monospace'; cx.fillStyle = 'rgba(255,255,255,.35)'; cx.textAlign = 'center'; cx.fillText('CUT CONTENT GRAVEYARD', 2110, 530);
+  for (const [x, y, r] of ROCKS) { cx.fillStyle = '#8a8d93'; cx.fillRect(x - r / 2, y - r / 2, r, r); cx.strokeStyle = '#2b2d31'; cx.lineWidth = 2; cx.strokeRect(x - r / 2, y - r / 2, r, r); cx.beginPath(); cx.moveTo(x - r / 2, y - r / 2); cx.lineTo(x + r / 2, y + r / 2); cx.moveTo(x + r / 2, y - r / 2); cx.lineTo(x - r / 2, y + r / 2); cx.stroke(); }
+  // the safe circle's dashed edge
+  cx.beginPath(); cx.arc(SPAWN.x, SPAWN.y, 110, 0, 7); cx.setLineDash([8, 8]); cx.strokeStyle = 'rgba(255,255,255,.5)'; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
+  for (const b of BUSHES) { const bz = zoneAt(b.x, b.y); if (bz && zonePainted(bz)) { drawPaintedTree(b, now); continue; } cx.fillStyle = '#2f6b3a'; cx.beginPath(); cx.arc(b.x, b.y, b.r, 0, 7); cx.fill(); cx.fillStyle = '#3d8a45'; cx.beginPath(); cx.arc(b.x - b.r * .25, b.y - b.r * .25, b.r * .6, 0, 7); cx.fill(); }
   // house: just a front
   cx.fillStyle = '#e8d6b0'; cx.fillRect(380, 360, 100, 80); cx.fillStyle = '#b5523b'; cx.beginPath(); cx.moveTo(370, 362); cx.lineTo(430, 316); cx.lineTo(490, 362); cx.fill();
   cx.fillStyle = '#6b4226'; cx.fillRect(418, 400, 24, 40); cx.fillStyle = '#9fd3ff'; cx.fillRect(392, 376, 18, 16); cx.fillRect(450, 376, 18, 16);
@@ -907,7 +1023,7 @@ function drawWorld(now) {
   }
   cx.fillStyle = 'rgba(0,0,0,.35)'; cx.fillRect(W - 36, 0, 36, H);
   for (let i = 0; i < Math.min(patch, PATCHES.length); i++) drawPatch(PATCHES[i], now);
-  for (const s of SIGNS) drawSign(s);
+  for (const s of SIGNS) if (!s.bare) drawSign(s);
   // tutorial guy
   const bob = Math.sin(now / 400) * 2;
   cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(GUY.x, GUY.y + 16, 15, 6, 0, 0, 7); cx.fill();
@@ -984,7 +1100,7 @@ function frame() {
         const petI = p.pet, bob = Math.sin(now / 200 + p.id) * 2;
         draw.push({ y: pp.y, f: () => { cx.save(); cx.translate(pp.x, pp.y - 6 + bob); drawPet(cx, petI, now); cx.restore(); } });
       }
-      draw.push({ y: p.y, f: () => drawPlayer(p, now), tag: p });
+      draw.push({ y: p.y, f: () => { drawPlayer(p, now); drawOtExtras(p, now); }, tag: p });
     }
   }
   draw.sort((a, b) => a.y - b.y).forEach((d) => d.f());

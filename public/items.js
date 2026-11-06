@@ -69,7 +69,12 @@ export const ITEMS = [
   { id: "realcape", slot: "back", r: 4, name: "Cape (physics enabled)", text: "It flutters. The server can barely handle it." },
   { id: "realpet", slot: "pet", r: 4, name: "Pet (with real AI)", text: "It has thoughts. Mostly about the roadmap." },
   { id: "realtrail", slot: "trail", r: 4, name: "Trail: Finished Game", text: "Leaves a trail of shipped features. Very rare." },
+  // ---- Area 2 only: dropped by ENEMY_TODO while the fence is down
+  { id: "hardhat", slot: "hat", r: 2, a2: true, name: "Hard Hat (Area 2)", text: "Required on site. The site is unfinished." },
+  { id: "scaffold", slot: "back", r: 2, a2: true, name: "Scaffolding (Area 2)", text: "You are now under construction." },
+  { id: "tcaution", slot: "trail", r: 2, a2: true, name: "Trail: Caution Tape (Area 2)", text: "Leaves DO NOT CROSS behind you. Everyone crosses." },
 ];
+export const A2_DROP = 0.06; // ENEMY_TODO's chance to drop an Area 2 item
 
 export const SLOTS = ["hat", "hand", "back", "pet", "trail"];
 export const SLOT_NAMES = { hat: "Hats", hand: "Held", back: "Backs", pet: "Pets", trail: "Trails" };
@@ -81,13 +86,14 @@ export const SETS = [
   { name: "MISSING_TEXTURE", color: "#ff00dc", items: ["notex", "shard", "checkcape", "ptex", "tcheck"] },
   { name: "Final_FINAL", color: "#6cb6ff", items: ["tophat", "final", "cape", "tlorem"] },
   { name: "Cut Content", color: "#b44dff", items: ["wizard", "wand", "wings", "trainbow"] },
+  { name: "Under Construction", color: "#ff9a1f", items: ["hardhat", "scaffold", "tcaution"] },
   { name: "Asset Store", color: "#ff9a3d", items: ["cone", "baguette", "pack", "pslime"] },
 ];
 
 export const DROP_CHANCE = 0.2; // per person who hit a normal slime
 export const EPIC_BOSSES = 25;  // Unfinished boss loot starts after you've really helped kill this many bosses
 export const isBound = (it) => it.r >= 3; // Unfinished and Finished can't be given away
-export const GIFT_MIN_KILLS = 100, GIFTS_PER_DAY = 10;
+export const GIFT_MIN_KILLS = 0, GIFTS_PER_DAY = Infinity; // gifting is free; only repeat Rare sends to one person are limited
 
 // Every Finished item is earned with a long goal, never by luck. Progress shows in the Bag.
 export const GOALS = {
@@ -95,13 +101,25 @@ export const GOALS = {
   realsword: { k: "boss", n: 150, how: "Really help kill 150 bosses" },
   realcape: { k: "days", n: 14, how: "Play on 14 different days (50+ kills each day)" },
   realpet: { k: "found", n: 40, how: "Find 40 different items from drops (no shop, wishes or gifts)" },
-  realtrail: { k: "ships", n: 8, how: "Help ship 8 patches (100+ kills during each one)" },
+  realtrail: { k: "ships", n: 8, how: "Help ship 8 patches (fill at least half your share of each)" },
 };
 export const SHIP_KILLS = 100, DAY_KILLS = 50;
 export const SCRAP = [2, 6, 25];           // coins for recycling one spare copy, by rarity
 export const LUCKY_WISH = 400;             // fountain: guaranteed Rare
 export const RAINBOW_OT = 10;              // rainbow body color unlocks at overtime ★10
 export const SPIN_CD = 6000;               // spin attack cooldown (ms)
+// Overtime rewards: past level 5, every 10 stars unlocks a look everyone can see. Earned only by playing.
+export const OT_REWARDS = [
+  { ot: 10, name: "Rainbow body color", text: "Pick it in 🎨 Me." },
+  { ot: 20, name: "Sweat drops", text: "You visibly work too hard." },
+  { ot: 25, name: "Gold name", text: "Your name tag turns gold." },
+  { ot: 30, name: "Coffee IV", text: "A mug orbits you. It's empty." },
+  { ot: 40, name: "Burnout aura", text: "You are slightly on fire." },
+  { ot: 50, name: "Crunch Survivor title", text: "Wear it in 🎨 Me." },
+  { ot: 60, name: "Sticky-note storm", text: "Three 'fix later' notes circle you." },
+  { ot: 80, name: "Server glow", text: "You hum like a server rack." },
+  { ot: 100, name: "Rainbow name", text: "Your name tag cycles colors. Go outside." },
+];
 // Hidden spots. Walk onto one to find it (titles for finding them). Not drawn on the map.
 export const SECRETS = [
   { x: 430, y: 300, text: "Behind the house. There's no back. It's a flat picture of a house." },
@@ -118,13 +136,13 @@ export const otNeed = (ot) => 40 + 10 * ot;
 export function rollItem(rnd, boss, epic = false) {
   if (boss) {
     const tier = epic && rnd() < 0.08 ? 3 : rnd() < 0.45 ? 2 : 1; // Rare is a 45% chance, not a guarantee
-    const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === tier);
+    const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === tier && !ITEMS[i].a2);
     return pool[Math.floor(rnd() * pool.length)];
   }
-  const total = ITEMS.reduce((s, it) => s + RARITY[it.r].weight, 0);
+  const total = ITEMS.reduce((s, it) => s + (it.a2 ? 0 : RARITY[it.r].weight), 0);
   let x = rnd() * total;
   for (let i = 0; i < ITEMS.length; i++) {
-    x -= RARITY[ITEMS[i].r].weight;
+    x -= ITEMS[i].a2 ? 0 : RARITY[ITEMS[i].r].weight;
     if (x < 0) return i;
   }
   return 0;
@@ -158,7 +176,13 @@ export const HOTFIX_NOTES = [
 ];
 export const unlocked = (patch, feature) => PATCHES.slice(0, patch).some((p) => p.unlock === feature);
 export const patchGoal = (n) => 40 + 20 * n + 5 * n * n; // kills needed to ship patch number n (0-based); later patches take longer
-export const patchName = (n) => "0.0." + (n + 1);
+export const LAUNCH = PATCHES.length;        // patch index of "1.0 Launch": needs a release boss beaten by a crowd
+export const LAUNCH_CROWD = 10;              // players who must really help beat the release boss, together
+export const patchName = (n) => n < LAUNCH ? "0.0." + (n + 1) : n === LAUNCH ? "1.0" : "1.0." + (n - LAUNCH);
+// No one person can fill a patch: each player's kills count for at most this share of the bar (1/5 early, 1/20 late).
+export const patchShare = (n) => 1 / Math.min(20, 5 + Math.floor(n * 15 / 11));
+export const helpersNeeded = (n) => Math.round(1 / patchShare(n));
+export const BAR_MIN_KILLS = 20;             // an account's kills count toward the bar after its first 20 kills (stops instant throwaways)
 
 // Character maker. Players send the index of each choice; the server only checks the range.
 export const SHAPES = ["Circle", "Default Cube", "Blob", "Low-poly"];
@@ -183,17 +207,18 @@ export const TITLES = [
   { name: "Unpaid Overtime", need: { ot: 10 }, how: "Reach overtime ★10 (keep playing past level 5)" },
   { name: "Crunch Survivor", need: { ot: 50 }, how: "Reach overtime ★50" },
   { name: "Regular", need: { days: 7 }, how: "Play on 7 different days (50+ kills each)" },
-  { name: "Shipped It", need: { ships: 5 }, how: "Help ship 5 patches (100+ kills each)" },
+  { name: "Shipped It", need: { ships: 5 }, how: "Help ship 5 patches" },
   { name: "Actually Finished", need: { fin: 5 }, how: "Earn all 5 Finished items" },
   { name: "Clipped Through", need: { secrets: 1 }, how: "Find a hidden spot" },
   { name: "QA Lead", need: { secrets: 5 }, how: "Find all 5 hidden spots" },
+  { name: "Day One", need: { launch: 1 }, how: "Help beat RELEASE_CANDIDATE_1.0 when version 1.0 ships" },
 ];
 
 // The shop (after patch "shop"). Prices in Placeholder Coins. Rare stock rotates daily.
 export const PRICES = [15, 40, 500];
 export function shopStock(day) {
   const common = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r <= 1);
-  const rares = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 2);
+  const rares = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 2 && !ITEMS[i].a2);
   const pick = (arr, n, seed) => { const a = arr.slice(), out = []; let x = seed; while (out.length < n && a.length) { x = (x * 1103515245 + 12345) % 2147483648; out.push(a.splice(x % a.length, 1)[0]); } return out; };
   return [...pick(common, 6, day * 7 + 1), ...pick(rares, 2, day * 13 + 5)];
 }
