@@ -26,6 +26,20 @@ const REACH = 46;            // attack distance (edge to edge-ish)
 const LEVEL_CAP = 5;
 const SLIME_NAMES = ["SLIME_FINAL", "SLIME_FINAL_v2", "SLIME_FINAL_v2_ACTUAL", "slime (placeholder)", "slime_copy(3)", "SLIME_DO_NOT_SHIP"];
 const BOSS = 99;             // kind index for the boss
+const BOSS2 = 97;            // the second boss, FINAL_BOSS_v0.1; bosses take turns
+const FAST = 10, BIG = 11, LAG = 12; // special slimes
+const isBoss = (k) => k === BOSS || k === BOSS2;
+// per kind: hp, size, bite damage, hop speed (wander, chase), xp
+const KIND = {
+  normal: { hp: 3, r: 16, dmg: 1, sp: [85, 120], xp: 1 },
+  [FAST]: { hp: 2, r: 11, dmg: 1, sp: [150, 230], xp: 1 },
+  [BIG]: { hp: 9, r: 27, dmg: 2, sp: [50, 75], xp: 3 },
+  [LAG]: { hp: 4, r: 16, dmg: 1, sp: [85, 120], xp: 2 },
+  [TODO]: { hp: 8, r: 20, dmg: 2, sp: [85, 120], xp: 3 },
+  [BOSS]: { r: 42, dmg: 2, sp: [70, 110], xp: 6 },
+  [BOSS2]: { r: 46, dmg: 2, sp: [55, 80], xp: 6 },
+};
+const kindOf = (k) => KIND[k] || KIND.normal;
 const BOSS_EVERY = 40;       // all-time kills between bosses
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -136,7 +150,7 @@ export class World extends DurableObject {
     }
   }
 
-  spawnSlime(boss = false, todo = false) {
+  spawnSlime(boss = false, todo = false, kind = null, at = null) {
     const id = this.nextId++;
     let x, y;
     for (let i = 0; i < 20; i++) {
@@ -144,14 +158,21 @@ export class World extends DurableObject {
       if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > (boss ? 300 : 220)) break;
     }
     if (todo) { x = FENCE_X + 120 + Math.random() * (W - FENCE_X - 200); y = 80 + Math.random() * (H - 160); }
+    if (at) { x = clamp(at.x + (Math.random() - 0.5) * 50, 30, FENCE_X - 30); y = clamp(at.y + (Math.random() - 0.5) * 50, 30, H - 30); }
     const n = this.players.size;
-    const s = boss
-      ? { id, x, y, hp: 30 + 12 * n, kind: BOSS, r: 42, dmg: 2, hitters: new Set() }
-      : todo ? { id, x, y, hp: 8, kind: TODO, r: 20, dmg: 2, hitters: new Set() }
-      : { id, x, y, hp: 3, kind: Math.floor(Math.random() * SLIME_NAMES.length), r: 16, dmg: 1, hitters: new Set() };
+    if (kind == null) {
+      if (boss) kind = Math.floor(this.total / BOSS_EVERY) % 2 === 0 ? BOSS2 : BOSS;
+      else if (todo) kind = TODO;
+      else { const r = Math.random(); kind = r < 0.12 ? FAST : r < 0.22 ? BIG : r < 0.3 ? LAG : Math.floor(Math.random() * SLIME_NAMES.length); }
+    }
+    const K = kindOf(kind);
+    const hp = kind === BOSS ? 30 + 12 * n : kind === BOSS2 ? 40 + 15 * n : K.hp;
+    const s = { id, x, y, hp, kind, r: K.r, dmg: K.dmg, hitters: new Set() };
     s.max = s.hp; s.hopAt = Date.now() + Math.random() * 1500; s.vx = 0; s.vy = 0; s.hopEnd = 0; s.lastBite = 0;
+    s.lagAt = Date.now() + 2000 + Math.random() * 1500; s.slamAt = Date.now() + 3000; s.slam = null;
     this.slimes.set(id, s);
-    if (boss) this.events.push({ e: "sys", text: "MISSING_TEXTURE has spawned. The artist left before finishing it. Team up." });
+    if (kind === BOSS) this.events.push({ e: "sys", text: "MISSING_TEXTURE has spawned. The artist left before finishing it. Team up." });
+    if (kind === BOSS2) this.events.push({ e: "sys", text: "FINAL_BOSS_v0.1 has spawned. It only has one attack. Step out of the red circle." });
     return s;
   }
 
@@ -161,7 +182,7 @@ export class World extends DurableObject {
     // keep the slime population matched to how many people are around
     const want = Math.min(32, 6 + 2 * alive.length);
     let normal = 0, todos = 0;
-    for (const s of this.slimes.values()) { if (s.kind === TODO) todos++; else if (s.kind !== BOSS) normal++; }
+    for (const s of this.slimes.values()) { if (s.kind === TODO) todos++; else if (!isBoss(s.kind)) normal++; }
     if (normal < want && Math.random() < 0.3) this.spawnSlime();
     const f = this.fence;
     if (f.openUntil) {
@@ -215,12 +236,39 @@ export class World extends DurableObject {
     // slimes
     for (const s of this.slimes.values()) {
       if (now >= s.hopAt) {
-        let near = null, nd = s.kind === BOSS ? 320 : 190;
+        const K = kindOf(s.kind);
+        let near = null, nd = isBoss(s.kind) ? 320 : s.kind === FAST ? 240 : 190;
         for (const p of alive) { if (p.deadUntil) continue; const d = dist(p, s); if (d < nd) { nd = d; near = p; } }
-        let ang = Math.random() * Math.PI * 2, sp = s.kind === BOSS ? 70 : 85;
-        if (near) { ang = Math.atan2(near.y - s.y, near.x - s.x); sp = s.kind === BOSS ? 110 : 120; }
+        let ang = Math.random() * Math.PI * 2, sp = K.sp[0];
+        if (near) { ang = Math.atan2(near.y - s.y, near.x - s.x); sp = K.sp[1]; }
         s.vx = Math.cos(ang) * sp; s.vy = Math.sin(ang) * sp;
-        s.hopEnd = now + 450; s.hopAt = now + (near ? 900 : 1400 + Math.random() * 1600);
+        s.hopEnd = now + 450; s.hopAt = now + (s.kind === FAST ? 550 : near ? 900 : 1400 + Math.random() * 1600);
+      }
+      // lag_slime rubber-bands: every few seconds it snaps somewhere nearby, like a bad connection
+      if (s.kind === LAG && now >= s.lagAt) {
+        const a = Math.random() * Math.PI * 2;
+        s.x = clamp(s.x + Math.cos(a) * 140, 30, FENCE_X - 30); s.y = clamp(s.y + Math.sin(a) * 140, 30, H - 30);
+        s.lagAt = now + 1800 + Math.random() * 1600;
+        this.events.push({ e: "lag", id: s.id });
+      }
+      // FINAL_BOSS_v0.1 has one attack: a slam with a red warning circle you can step out of
+      if (s.kind === BOSS2) {
+        if (!s.slam && now >= s.slamAt) {
+          let tgt = null, td = 420;
+          for (const p of alive) { if (p.deadUntil) continue; const d = dist(p, s); if (d < td) { td = d; tgt = p; } }
+          if (tgt) { s.slam = { x: Math.round(tgt.x), y: Math.round(tgt.y), at: now + 1300 }; this.events.push({ e: "tele", x: s.slam.x, y: s.slam.y, r: 105, ms: 1300 }); }
+          s.slamAt = now + 3800;
+        }
+        if (s.slam && now >= s.slam.at) {
+          const sl = s.slam; s.slam = null; let hit = 0;
+          for (const p of alive) {
+            if (p.deadUntil || dist(p, SPAWN) < SAFE || Math.hypot(p.x - sl.x, p.y - sl.y) > 105) continue;
+            p.hp -= 3; p.lastHurt = now; hit++;
+            this.events.push({ e: "ow", id: p.id, dmg: 3 });
+            if (p.hp <= 0) { p.hp = 0; p.deadUntil = now + 3000; p.target = null; this.events.push({ e: "die", id: p.id }); }
+          }
+          this.events.push({ e: "slam", x: sl.x, y: sl.y, r: 105, hit });
+        }
       }
       if (now < s.hopEnd) {
         // slimes stay on their own side of the fence, open or not
@@ -262,13 +310,13 @@ export class World extends DurableObject {
       this.events.push({ e: "patch", n: this.patch, name: patchName(n), note });
       this.events.push({ e: "sys", text: `Patch ${patchName(n)} shipped. ${note}` });
     }
-    const boss = s.kind === BOSS;
-    const xp = boss ? 6 : s.kind === TODO ? 3 : 1;
+    const boss = isBoss(s.kind);
+    const xp = kindOf(s.kind).xp;
     for (const pid of s.hitters) {
       const p = this.players.get(pid);
       if (!p) continue;
       p.kills++;
-      this.loot(p, boss, s.kind === TODO, s);
+      this.loot(p, boss, s.kind === TODO ? 0.5 : (s.kind === BIG || s.kind === LAG) ? 0.35 : DROP_CHANCE, s);
       if (p.lvl >= LEVEL_CAP) continue;
       p.xp += xp;
       while (p.lvl < LEVEL_CAP && p.xp >= xpFor(p.lvl)) {
@@ -276,19 +324,25 @@ export class World extends DurableObject {
         this.events.push({ e: "lvl", id: p.id, lvl: p.lvl, cap: p.lvl >= LEVEL_CAP });
       }
     }
-    this.events.push({ e: "kill", id: s.id, x: Math.round(s.x), y: Math.round(s.y), boss, helpers: s.hitters.size, total: this.total, by: [...s.hitters] });
-    if (boss) {
+    this.events.push({ e: "kill", id: s.id, x: Math.round(s.x), y: Math.round(s.y), boss, helpers: s.hitters.size, total: this.total, by: [...s.hitters], xp });
+    if (s.kind === BIG) {
+      // split() was never implemented. It splits anyway.
+      for (let i = 0; i < 3; i++) { const c = this.spawnSlime(false, false, Math.floor(Math.random() * SLIME_NAMES.length), s); c.hp = c.max = 2; }
+    }
+    if (s.kind === BOSS2) {
+      this.events.push({ e: "sys", text: `FINAL_BOSS_v0.1 defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. The real final boss is in the sequel. Everyone who hit it got Rare loot or better.` });
+    } else if (boss) {
       this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who hit it got Rare loot or better. Some of it isn't finished.` });
     } else if (this.total % 100 === 0) {
       this.events.push({ e: "sys", text: `Everyone together has now killed ${this.total} slimes. New areas added by the devs: 0.` });
     }
     let hasBoss = false;
-    for (const o of this.slimes.values()) if (o.kind === BOSS) hasBoss = true;
+    for (const o of this.slimes.values()) if (isBoss(o.kind)) hasBoss = true;
     if (!hasBoss && this.total % BOSS_EVERY === 0) this.spawnSlime(true);
   }
 
-  loot(p, boss, todo, s) {
-    if (!boss && Math.random() >= (todo ? 0.5 : DROP_CHANCE)) return;
+  loot(p, boss, chance, s) {
+    if (!boss && Math.random() >= chance) return;
     const item = rollItem(Math.random, boss);
     try { p.ws.send(JSON.stringify({ t: "loot", item, x: Math.round(s.x), y: Math.round(s.y) })); } catch {}
     const it = ITEMS[item];
