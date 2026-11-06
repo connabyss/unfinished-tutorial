@@ -1,0 +1,269 @@
+import { DurableObject } from "cloudflare:workers";
+
+// One shared world for everyone. The browser connects to /ws; everything else is the static page.
+export default {
+  async fetch(req, env) {
+    const url = new URL(req.url);
+    if (url.pathname === "/ws") {
+      if (req.headers.get("Upgrade") !== "websocket") return new Response("expected websocket", { status: 426 });
+      const stub = env.WORLD.get(env.WORLD.idFromName("world-1"));
+      return stub.fetch(req);
+    }
+    return env.ASSETS.fetch(req);
+  },
+};
+
+const W = 1600, H = 1200, SPAWN = { x: 800, y: 600 };
+const SAFE = 110;            // safe radius around spawn
+const TICK = 100;            // ms
+const MAX_PLAYERS = 60;
+const SPEED = 170;           // px/s
+const REACH = 46;            // attack distance (edge to edge-ish)
+const LEVEL_CAP = 5;
+const SLIME_NAMES = ["SLIME_FINAL", "SLIME_FINAL_v2", "SLIME_FINAL_v2_ACTUAL", "slime (placeholder)", "slime_copy(3)", "SLIME_DO_NOT_SHIP"];
+const BOSS = 99;             // kind index for the boss
+const BOSS_EVERY = 40;       // all-time kills between bosses
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const xpFor = (lvl) => lvl * 6;    // xp needed to leave this level
+
+export class World extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.players = new Map();
+    this.slimes = new Map();
+    this.nextId = 1;
+    this.events = [];
+    this.total = 0;
+    this.dirty = false;
+    this.timer = null;
+    this.lastSave = 0;
+    ctx.blockConcurrencyWhile(async () => {
+      this.total = (await ctx.storage.get("total")) || 0;
+    });
+  }
+
+  async fetch(req) {
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    server.accept();
+    if (this.players.size >= MAX_PLAYERS) {
+      server.send(JSON.stringify({ t: "full" }));
+      server.close(1013, "full");
+      return new Response(null, { status: 101, webSocket: client });
+    }
+    this.join(server);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  join(ws) {
+    const id = this.nextId++;
+    const p = {
+      id, ws, name: "Player_" + (1000 + Math.floor(Math.random() * 9000)), hue: Math.floor(Math.random() * 360),
+      x: SPAWN.x + (Math.random() - 0.5) * 80, y: SPAWN.y + 40 + Math.random() * 40, tx: null, ty: null,
+      target: null, hp: 10, max: 10, lvl: 1, xp: 0, kills: 0, lastHit: 0, lastHurt: 0, lastRegen: 0,
+      deadUntil: 0, lastSay: 0, named: false, bucket: 0, bucketAt: Date.now(),
+    };
+    this.players.set(id, p);
+    ws.send(JSON.stringify({ t: "you", id, total: this.total, w: W, h: H }));
+    ws.addEventListener("message", (ev) => this.onMsg(p, ev.data));
+    const bye = () => this.leave(p);
+    ws.addEventListener("close", bye);
+    ws.addEventListener("error", bye);
+    if (!this.timer) this.timer = setInterval(() => this.tick(), TICK);
+  }
+
+  leave(p) {
+    if (!this.players.has(p.id)) return;
+    this.players.delete(p.id);
+    if (p.named) this.events.push({ e: "sys", text: `${p.name} left. Their progress is saved. (It isn't.)` });
+    if (this.players.size === 0 && this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+      this.save(true);
+    }
+  }
+
+  onMsg(p, raw) {
+    // simple flood guard: 25 messages per second per player
+    const now = Date.now();
+    if (now - p.bucketAt > 1000) { p.bucket = 0; p.bucketAt = now; }
+    if (++p.bucket > 25) return;
+    if (typeof raw !== "string" || raw.length > 300) return;
+    let m;
+    try { m = JSON.parse(raw); } catch { return; }
+    if (!m || typeof m.t !== "string") return;
+    if (m.t === "hi") {
+      const name = cleanName(m.name);
+      if (name) p.name = name;
+      if (Number.isFinite(m.hue)) p.hue = Math.floor(clamp(m.hue, 0, 359));
+      if (!p.named) {
+        p.named = true;
+        const alone = this.players.size === 1;
+        this.events.push({ e: "sys", text: alone
+          ? `${p.name} joined. You're the only one here. Very realistic MMO launch.`
+          : `${p.name} joined. Welcome to the tutorial. It's also the endgame.` });
+      }
+    } else if (m.t === "go") {
+      if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) return;
+      p.tx = clamp(m.x, 20, W - 20); p.ty = clamp(m.y, 20, H - 20); p.target = null;
+    } else if (m.t === "atk") {
+      if (this.slimes.has(m.id)) { p.target = m.id; p.tx = null; }
+    } else if (m.t === "say") {
+      if (typeof m.text !== "string") return;
+      const text = m.text.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 80);
+      if (!text || now - p.lastSay < 1200) return;
+      p.lastSay = now;
+      this.events.push({ e: "say", id: p.id, text });
+    }
+  }
+
+  spawnSlime(boss = false) {
+    const id = this.nextId++;
+    let x, y;
+    for (let i = 0; i < 20; i++) {
+      x = 80 + Math.random() * (W - 160); y = 80 + Math.random() * (H - 160);
+      if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > (boss ? 300 : 220)) break;
+    }
+    const n = this.players.size;
+    const s = boss
+      ? { id, x, y, hp: 30 + 12 * n, kind: BOSS, r: 42, dmg: 2, hitters: new Set() }
+      : { id, x, y, hp: 3, kind: Math.floor(Math.random() * SLIME_NAMES.length), r: 16, dmg: 1, hitters: new Set() };
+    s.max = s.hp; s.hopAt = Date.now() + Math.random() * 1500; s.vx = 0; s.vy = 0; s.hopEnd = 0; s.lastBite = 0;
+    this.slimes.set(id, s);
+    if (boss) this.events.push({ e: "sys", text: "MISSING_TEXTURE has spawned. The artist left before finishing it. Team up." });
+    return s;
+  }
+
+  tick() {
+    const now = Date.now(), dt = TICK / 1000;
+    const alive = [...this.players.values()].filter((p) => p.named);
+    // keep the slime population matched to how many people are around
+    const want = Math.min(32, 6 + 2 * alive.length);
+    let normal = 0;
+    for (const s of this.slimes.values()) if (s.kind !== BOSS) normal++;
+    if (normal < want && Math.random() < 0.3) this.spawnSlime();
+
+    // players
+    for (const p of this.players.values()) {
+      if (p.deadUntil) {
+        if (now >= p.deadUntil) {
+          p.deadUntil = 0; p.hp = p.max; p.x = SPAWN.x; p.y = SPAWN.y + 50; p.tx = p.ty = null; p.target = null;
+        }
+        continue;
+      }
+      let gx = p.tx, gy = p.ty;
+      const t = p.target != null ? this.slimes.get(p.target) : null;
+      if (p.target != null && !t) p.target = null;
+      if (t) {
+        const d = dist(p, t);
+        if (d <= t.r + REACH) {
+          gx = null;
+          if (now - p.lastHit >= 450) {
+            p.lastHit = now;
+            const dmg = 1 + Math.floor((p.lvl - 1) / 2);
+            t.hp -= dmg; t.hitters.add(p.id);
+            this.events.push({ e: "hit", by: p.id, id: t.id, dmg });
+            if (t.hp <= 0) this.kill(t);
+          }
+        } else { gx = t.x; gy = t.y; }
+      }
+      if (gx != null) {
+        const dx = gx - p.x, dy = gy - p.y, d = Math.hypot(dx, dy), step = SPEED * dt;
+        if (d <= step) { p.x = gx; p.y = gy; if (!t) { p.tx = p.ty = null; } }
+        else { p.x += (dx / d) * step; p.y += (dy / d) * step; }
+      }
+      if (p.hp < p.max && now - p.lastHurt > 4000 && now - p.lastRegen > 1500) { p.hp++; p.lastRegen = now; }
+    }
+
+    // slimes
+    for (const s of this.slimes.values()) {
+      if (now >= s.hopAt) {
+        let near = null, nd = s.kind === BOSS ? 320 : 190;
+        for (const p of alive) { if (p.deadUntil) continue; const d = dist(p, s); if (d < nd) { nd = d; near = p; } }
+        let ang = Math.random() * Math.PI * 2, sp = s.kind === BOSS ? 70 : 85;
+        if (near) { ang = Math.atan2(near.y - s.y, near.x - s.x); sp = s.kind === BOSS ? 110 : 120; }
+        s.vx = Math.cos(ang) * sp; s.vy = Math.sin(ang) * sp;
+        s.hopEnd = now + 450; s.hopAt = now + (near ? 900 : 1400 + Math.random() * 1600);
+      }
+      if (now < s.hopEnd) { s.x = clamp(s.x + s.vx * dt, 30, W - 30); s.y = clamp(s.y + s.vy * dt, 30, H - 30); }
+      // the spawn circle is a safe zone: slimes respect the tutorial
+      const sd = Math.hypot(s.x - SPAWN.x, s.y - SPAWN.y), keep = SAFE + s.r;
+      if (sd < keep) { const k = keep / (sd || 1); s.x = SPAWN.x + (s.x - SPAWN.x) * k; s.y = SPAWN.y + (s.y - SPAWN.y) * k; }
+      // bite anyone touching it
+      if (now - s.lastBite > 1300) {
+        for (const p of alive) {
+          if (p.deadUntil || dist(p, SPAWN) < SAFE) continue;
+          if (dist(p, s) < s.r + 14) {
+            s.lastBite = now; p.hp -= s.dmg; p.lastHurt = now;
+            this.events.push({ e: "ow", id: p.id, dmg: s.dmg });
+            if (p.hp <= 0) {
+              p.hp = 0; p.deadUntil = now + 3000; p.target = null;
+              this.events.push({ e: "die", id: p.id });
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    if (this.dirty && now - this.lastSave > 5000) this.save();
+    this.broadcast();
+  }
+
+  kill(s) {
+    this.slimes.delete(s.id);
+    this.total++; this.dirty = true;
+    const boss = s.kind === BOSS;
+    const xp = boss ? 6 : 1;
+    for (const pid of s.hitters) {
+      const p = this.players.get(pid);
+      if (!p) continue;
+      p.kills++;
+      if (p.lvl >= LEVEL_CAP) continue;
+      p.xp += xp;
+      while (p.lvl < LEVEL_CAP && p.xp >= xpFor(p.lvl)) {
+        p.xp -= xpFor(p.lvl); p.lvl++; p.max += 2; p.hp = p.max;
+        this.events.push({ e: "lvl", id: p.id, lvl: p.lvl, cap: p.lvl >= LEVEL_CAP });
+      }
+    }
+    this.events.push({ e: "kill", id: s.id, x: Math.round(s.x), y: Math.round(s.y), boss, helpers: s.hitters.size, total: this.total });
+    if (boss) {
+      this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Loot: a picture of loot.` });
+    } else if (this.total % 100 === 0) {
+      this.events.push({ e: "sys", text: `Everyone together has now killed ${this.total} slimes. New areas added by the devs: 0.` });
+    }
+    let hasBoss = false;
+    for (const o of this.slimes.values()) if (o.kind === BOSS) hasBoss = true;
+    if (!hasBoss && this.total % BOSS_EVERY === 0) this.spawnSlime(true);
+  }
+
+  save(force = false) {
+    if (!this.dirty && !force) return;
+    this.dirty = false; this.lastSave = Date.now();
+    this.ctx.storage.put("total", this.total);
+  }
+
+  broadcast() {
+    const p = [], m = [];
+    let online = 0;
+    for (const q of this.players.values()) {
+      if (!q.named) continue;
+      online++;
+      p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.xp, xpFor(q.lvl), q.kills]);
+    }
+    for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind]);
+    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total });
+    this.events = [];
+    for (const q of this.players.values()) {
+      try { q.ws.send(msg); } catch { this.leave(q); }
+    }
+  }
+}
+
+function cleanName(n) {
+  if (typeof n !== "string") return null;
+  const s = n.replace(/[^\p{L}\p{N} _.\-]/gu, "").trim().slice(0, 16);
+  return s.length >= 2 ? s : null;
+}

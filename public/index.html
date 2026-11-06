@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#2f6b3a">
+<title>The Unfinished Tutorial</title>
+<meta name="description" content="A tiny real MMO. Everyone is stuck in the tutorial because the rest of the game never shipped.">
+<style>
+  :root { --ink:#1b1f17; --paper:#fffdf3; --hud:rgba(20,26,18,.78); --accent:#ffd34d; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#2f6b3a; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff; touch-action:none; user-select:none; -webkit-user-select:none; }
+  canvas { display:block; position:fixed; inset:0; width:100%; height:100%; }
+  .hud { position:fixed; background:var(--hud); border-radius:12px; padding:8px 10px; font-size:13px; line-height:1.35; }
+  #me { top:max(10px,env(safe-area-inset-top)); left:10px; min-width:150px; }
+  #me .name { font-weight:700; font-size:14px; cursor:pointer; }
+  #me .name small { opacity:.6; font-weight:400; }
+  .bar { height:7px; background:rgba(255,255,255,.18); border-radius:4px; margin-top:4px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; border-radius:4px; transition:width .15s; }
+  #hp i { background:#ff5c5c; } #xp i { background:var(--accent); }
+  #world { top:max(10px,env(safe-area-inset-top)); right:10px; text-align:right; }
+  #world b { color:var(--accent); }
+  #log { position:fixed; left:10px; bottom:calc(64px + env(safe-area-inset-bottom)); width:min(420px,calc(100% - 20px)); pointer-events:none; font-size:13px; }
+  #log div { background:rgba(20,26,18,.7); border-radius:8px; padding:4px 8px; margin-top:4px; transition:opacity 1s; overflow-wrap:anywhere; }
+  #log .sys { color:#ffe9a6; }
+  #log b { font-weight:700; }
+  #bar { position:fixed; left:10px; right:10px; bottom:max(10px,env(safe-area-inset-bottom)); display:flex; gap:8px; }
+  button { font:inherit; font-weight:700; border:0; border-radius:12px; padding:0 16px; height:46px; background:var(--paper); color:var(--ink); box-shadow:0 2px 0 rgba(0,0,0,.35); cursor:pointer; }
+  button:active { transform:translateY(2px); box-shadow:none; }
+  #chatbox { display:none; flex:1; gap:8px; }
+  #chatbox.open { display:flex; }
+  #chatbox input { flex:1; min-width:0; height:46px; border-radius:12px; border:0; padding:0 12px; font:inherit; font-size:16px; }
+  #toast { position:fixed; left:50%; top:30%; transform:translate(-50%,-50%); text-align:center; font-weight:800; font-size:22px; text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.6); pointer-events:none; opacity:0; transition:opacity .3s; width:min(90%,520px); }
+  #toast small { display:block; font-size:15px; font-weight:600; margin-top:6px; }
+  #status { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(20,26,18,.85); font-size:18px; text-align:center; padding:20px; }
+  #status.hide { display:none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="me" class="hud">
+  <div class="name" id="nm" title="Tap to change your name">…</div>
+  <div id="lv">Lv 1</div>
+  <div class="bar" id="hp"><i></i></div>
+  <div class="bar" id="xp"><i></i></div>
+</div>
+<div id="world" class="hud"><div><b id="on">0</b> online</div><div><b id="tot">0</b> slimes killed by everyone</div></div>
+<div id="log"></div>
+<div id="bar">
+  <button id="say">💬 Chat</button>
+  <div id="chatbox"><input id="msg" maxlength="80" placeholder="Say something" enterkeyhint="send" autocomplete="off"><button id="send">Send</button></div>
+  <button id="invite" style="margin-left:auto">Invite</button>
+</div>
+<div id="toast"></div>
+<div id="status">Connecting to the only server…</div>
+<script>
+(() => {
+const cv = document.getElementById('c'), cx = cv.getContext('2d');
+const $ = (id) => document.getElementById(id);
+let W = 1600, H = 1200, DPR = 1, vw = 0, vh = 0;
+function resize() { DPR = Math.min(2, window.devicePixelRatio || 1); vw = innerWidth; vh = innerHeight; cv.width = vw * DPR; cv.height = vh * DPR; }
+addEventListener('resize', resize); resize();
+
+// ---------- the world's fixed stuff (same for everyone) ----------
+const SPAWN = { x: 800, y: 600 };
+const GUY = { x: 800, y: 520 };
+const GUY_LINES = [
+  "Hi! I'm the tutorial.",
+  "Press W to walk forward.",
+  "Oh, you're on a phone? Just tap. Nobody updated me.",
+  "Tap a slime to fight it. Everyone who hits it gets the XP.",
+  "Fight with other people. That's the whole MMO part.",
+  "The rest of the game is coming soon. I've said that since launch.",
+  "Level cap is 5. Levels 6 to 99 are on the roadmap.",
+  "I was supposed to give you a sword. Budget.",
+];
+const SIGNS = [
+  { x: 960, y: 600, title: "SHOP", text: "Closed for launch." },
+  { x: 650, y: 650, title: "RESPAWN POINT", text: "Also the only point. Slimes can't come in here. They respect the tutorial." },
+  { x: 1530, y: 600, title: "AREA 2 →", text: "Coming soon." },
+  { x: 1180, y: 920, title: "QUEST BOARD", text: "Kill slimes. Reward: you killed slimes." },
+  { x: 430, y: 470, title: "HOUSE", text: "It's only the front. Like most of the game." },
+  { x: 260, y: 960, title: "TREE", text: "Cardboard. Don't look behind it." },
+  { x: 800, y: 1120, title: "WORLD EDGE", text: "The map ends here. Pretend there's fog." },
+];
+function rng(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+const R = rng(7), FLOWERS = [], BUSHES = [];
+for (let i = 0; i < 140; i++) FLOWERS.push({ x: R() * W, y: R() * H, c: ['#ffe57a', '#ff9bd2', '#ffffff', '#9fd3ff'][Math.floor(R() * 4)] });
+for (let i = 0; i < 26; i++) { const x = 60 + R() * (W - 120), y = 60 + R() * (H - 120); if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > 160) BUSHES.push({ x, y, r: 14 + R() * 12 }); }
+const SLIME_NAMES = ["SLIME_FINAL", "SLIME_FINAL_v2", "SLIME_FINAL_v2_ACTUAL", "slime (placeholder)", "slime_copy(3)", "SLIME_DO_NOT_SHIP"];
+const BOSS = 99;
+
+// ---------- state ----------
+let ws = null, myId = null, snapA = null, snapB = null, snapAt = 0;
+const fx = [], bubbles = new Map(), swings = new Map(), hurt = new Map();
+let tapMark = null, guyLine = 0, guyAt = 0, total = 0;
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+let myName = store.get('ut_name'), myHue = Number(store.get('ut_hue'));
+if (!Number.isFinite(myHue) || store.get('ut_hue') === null) { myHue = Math.floor(Math.random() * 360); store.set('ut_hue', myHue); }
+if (!myName) { const a = ["Beta", "Unpaid", "Early", "Patch", "Lag", "Alpha", "Loading", "Demo"], b = ["Hero", "Tester", "Knight", "Guy", "Bean", "Legend", "Intern", "Wizard"]; myName = a[Math.floor(Math.random() * a.length)] + b[Math.floor(Math.random() * b.length)] + Math.floor(Math.random() * 90 + 10); store.set('ut_name', myName); }
+
+function connect() {
+  $('status').classList.remove('hide'); $('status').textContent = 'Connecting to the only server…';
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  ws.onopen = () => { ws.send(JSON.stringify({ t: 'hi', name: myName, hue: myHue })); };
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.t === 'you') { myId = m.id; W = m.w; H = m.h; total = m.total; $('status').classList.add('hide'); }
+    else if (m.t === 'full') { $('status').textContent = 'The server is full. An MMO with a queue. Very authentic. Try again soon.'; }
+    else if (m.t === 's') onSnap(m);
+  };
+  ws.onclose = () => { myId = null; $('status').classList.remove('hide'); $('status').textContent = 'Lost the server. Reconnecting…'; setTimeout(connect, 2000); };
+}
+function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+function toMap(arr, keys) { const out = new Map(); for (const a of arr) { const o = {}; keys.forEach((k, i) => o[k] = a[i]); out.set(o.id, o); } return out; }
+const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind'];
+function onSnap(m) {
+  snapA = snapB || { p: new Map(), m: new Map() };
+  snapB = { p: toMap(m.p, PK), m: toMap(m.m, MK) };
+  snapAt = performance.now();
+  total = m.total;
+  $('on').textContent = m.n; $('tot').textContent = total.toLocaleString();
+  for (const e of m.e) onEvent(e);
+  const me = snapB.p.get(myId);
+  if (me) {
+    $('nm').innerHTML = ''; $('nm').append(me.name + ' '); const sm = document.createElement('small'); sm.textContent = '✎'; $('nm').append(sm);
+    $('lv').textContent = me.lvl >= 5 ? `Lv 5 (max) · ${me.kills} kills` : `Lv ${me.lvl} · ${me.kills} kills`;
+    $('hp').firstChild.style.width = (100 * me.hp / me.max) + '%';
+    $('xp').firstChild.style.width = me.lvl >= 5 ? '100%' : (100 * me.xp / me.need) + '%';
+  }
+}
+function nameOf(id) { const p = snapB && snapB.p.get(id); return p ? p.name : 'someone'; }
+function onEvent(e) {
+  const now = performance.now();
+  if (e.e === 'sys') log(e.text, true);
+  else if (e.e === 'say') { bubbles.set(e.id, { text: e.text, until: now + 6000 }); log(null, false, nameOf(e.id), e.text); }
+  else if (e.e === 'hit') {
+    swings.set(e.by, now);
+    const s = snapB.m.get(e.id) || (snapA && snapA.m.get(e.id));
+    if (s) fx.push({ x: s.x + (Math.random() - .5) * 16, y: s.y - 20, text: '-' + e.dmg, c: e.by === myId ? '#fff' : '#ffe08a', t: now, life: 700 });
+  }
+  else if (e.e === 'ow') { hurt.set(e.id, now); const p = snapB.p.get(e.id); if (p) fx.push({ x: p.x, y: p.y - 30, text: '-' + e.dmg, c: '#ff6b6b', t: now, life: 800 }); }
+  else if (e.e === 'kill') {
+    for (let i = 0; i < (e.boss ? 40 : 12); i++) fx.push({ x: e.x, y: e.y, vx: (Math.random() - .5) * 260, vy: (Math.random() - .7) * 260, dot: true, c: e.boss ? (i % 2 ? '#ff00dc' : '#111') : '#7be36a', t: now, life: 650 });
+    if (e.helpers > 1 && !e.boss) fx.push({ x: e.x, y: e.y - 34, text: `teamwork ×${e.helpers}`, c: '#ffd34d', t: now, life: 1100 });
+  }
+  else if (e.e === 'lvl' && e.id === myId) toast(e.cap ? 'LEVEL 5 (MAX)' : 'LEVEL ' + e.lvl + '!', e.cap ? "That's every level they made." : ['Nothing new unlocked. The skill tree is a picture.', '+2 max HP. That was the whole budget.', 'Your armor is the same. It was always a texture.'][(e.lvl - 2) % 3]);
+  else if (e.e === 'lvl') log(`${nameOf(e.id)} reached level ${e.lvl}.`, true);
+  else if (e.e === 'die' && e.id === myId) toast('YOU DIED', 'Respawning at the only spawn point.');
+}
+function log(text, sys, who, said) {
+  const d = document.createElement('div');
+  if (sys) { d.className = 'sys'; d.textContent = text; }
+  else { const b = document.createElement('b'); b.textContent = who + ': '; d.append(b, said); }
+  $('log').append(d);
+  while ($('log').children.length > 5) $('log').firstChild.remove();
+  setTimeout(() => { d.style.opacity = 0; }, 9000); setTimeout(() => d.remove(), 10000);
+}
+let toastT = 0;
+function toast(big, small) { const t = $('toast'); t.innerHTML = ''; t.append(big); if (small) { const s = document.createElement('small'); s.textContent = small; t.append(s); } t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, 2600); }
+
+// ---------- input ----------
+function camera() {
+  const me = interp('p', myId) || SPAWN;
+  return { x: Math.max(0, Math.min(W - vw, me.x - vw / 2)) - (vw > W ? (vw - W) / 2 : 0), y: Math.max(0, Math.min(H - vh, me.y - vh / 2)) - (vh > H ? (vh - H) / 2 : 0) };
+}
+cv.addEventListener('pointerdown', (ev) => {
+  if (myId == null) return;
+  if ($('chatbox').classList.contains('open')) closeChat();
+  const cam = camera(), wx = ev.clientX + cam.x, wy = ev.clientY + cam.y;
+  let best = null, bd = 1e9;
+  if (snapB) for (const s of snapB.m.values()) { const q = interp('m', s.id); const r = (s.kind === BOSS ? 42 : 16) + 22; const d = Math.hypot(q.x - wx, q.y - wy); if (d < r && d < bd) { bd = d; best = s; } }
+  if (best) { send({ t: 'atk', id: best.id }); tapMark = { x: best.x, y: best.y, t: performance.now(), atk: true }; }
+  else { send({ t: 'go', x: wx, y: wy }); tapMark = { x: wx, y: wy, t: performance.now() }; }
+});
+function openChat() { $('chatbox').classList.add('open'); $('say').style.display = 'none'; $('invite').style.display = 'none'; $('msg').focus(); }
+function closeChat() { $('chatbox').classList.remove('open'); $('say').style.display = ''; $('invite').style.display = ''; $('msg').blur(); }
+function sendChat() { const t = $('msg').value.trim(); if (t) send({ t: 'say', text: t }); $('msg').value = ''; closeChat(); }
+$('say').onclick = openChat; $('send').onclick = sendChat;
+$('msg').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); sendChat(); } if (e.key === 'Escape') closeChat(); });
+addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target !== $('msg') && !$('chatbox').classList.contains('open')) { e.preventDefault(); openChat(); } });
+$('nm').onclick = () => {
+  const n = prompt('Your name (2 to 16 letters):', myName);
+  if (n && n.trim().length >= 2) { myName = n.trim().slice(0, 16); store.set('ut_name', myName); send({ t: 'hi', name: myName, hue: myHue }); }
+};
+$('invite').onclick = async () => {
+  const url = location.origin + location.pathname;
+  const text = "I'm stuck in a tutorial with strangers. Come fight slimes.";
+  try { if (navigator.share) { await navigator.share({ title: 'The Unfinished Tutorial', text, url }); return; } } catch {}
+  try { await navigator.clipboard.writeText(url); toast('LINK COPIED', 'Send it to someone. More people, bigger slimes.'); } catch { prompt('Copy this link:', url); }
+};
+
+// ---------- drawing ----------
+function interp(kind, id) {
+  if (!snapB) return null;
+  const b = snapB[kind].get(id); if (!b) return null;
+  const a = snapA && snapA[kind].get(id);
+  const k = Math.min(1, (performance.now() - snapAt) / 100);
+  if (!a || Math.hypot(a.x - b.x, a.y - b.y) > 120) return b;
+  return { ...b, x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+}
+function wrapText(t, max) { const words = t.split(' '), lines = []; let line = ''; for (const w of words) { const test = line ? line + ' ' + w : w; if (cx.measureText(test).width > max && line) { lines.push(line); line = w; } else line = test; } if (line) lines.push(line); return lines; }
+function bubble(x, y, text, col) {
+  cx.font = '600 13px system-ui,sans-serif';
+  const lines = wrapText(text, 180), lh = 16, w = Math.max(...lines.map((l) => cx.measureText(l).width)) + 16, h = lines.length * lh + 10;
+  const bx = x - w / 2, by = y - h - 8;
+  cx.fillStyle = col || '#fffdf3'; cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2;
+  cx.beginPath(); cx.roundRect(bx, by, w, h, 8); cx.fill(); cx.stroke();
+  cx.beginPath(); cx.moveTo(x - 6, by + h); cx.lineTo(x, by + h + 7); cx.lineTo(x + 6, by + h); cx.fill();
+  cx.fillStyle = '#1b1f17'; cx.textAlign = 'center';
+  lines.forEach((l, i) => cx.fillText(l, x, by + 17 + i * lh));
+}
+function drawPlayer(p, now) {
+  const isMe = p.id === myId, sw = swings.get(p.id) || 0, swing = now - sw < 220 ? (now - sw) / 220 : 0, h = now - (hurt.get(p.id) || 0) < 200;
+  cx.save(); cx.translate(p.x, p.y);
+  if (p.dead) cx.globalAlpha = 0.35;
+  cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(0, 14, 15, 6, 0, 0, 7); cx.fill();
+  // stick "sword" (the budget sword)
+  cx.save(); cx.translate(10, -2); cx.rotate(-0.6 + swing * 2.2); cx.fillStyle = '#c9b48a'; cx.fillRect(-2, -22, 4, 22); cx.restore();
+  cx.fillStyle = h ? '#fff' : `hsl(${p.hue} 70% 55%)`; cx.strokeStyle = '#1b1f17'; cx.lineWidth = isMe ? 3 : 2;
+  cx.beginPath(); cx.arc(0, 0, 14, 0, 7); cx.fill(); cx.stroke();
+  cx.fillStyle = '#1b1f17'; cx.beginPath(); cx.arc(-5, -3, 2.2, 0, 7); cx.arc(5, -3, 2.2, 0, 7); cx.fill();
+  if (p.dead) { cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(-8, -6); cx.lineTo(-3, -1); cx.moveTo(-3, -6); cx.lineTo(-8, -1); cx.moveTo(3, -6); cx.lineTo(8, -1); cx.moveTo(8, -6); cx.lineTo(3, -1); cx.stroke(); }
+  cx.globalAlpha = 1;
+  cx.font = (isMe ? '700 ' : '600 ') + '12px system-ui,sans-serif'; cx.textAlign = 'center';
+  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; const tag = p.name + ' · ' + p.lvl; cx.strokeText(tag, 0, 30); cx.fillStyle = isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, 0, 30);
+  if (p.hp < p.max && !p.dead) { cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(-15, -24, 30, 4); cx.fillStyle = '#ff5c5c'; cx.fillRect(-15, -24, 30 * p.hp / p.max, 4); }
+  cx.restore();
+}
+function drawSlime(s, now) {
+  const boss = s.kind === BOSS, r = boss ? 42 : 16, wob = Math.sin(now / 160 + s.id) * 0.08;
+  cx.save(); cx.translate(s.x, s.y);
+  cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(0, r * 0.75, r, r * 0.35, 0, 0, 7); cx.fill();
+  cx.scale(1 + wob, 1 - wob);
+  cx.beginPath(); cx.ellipse(0, 0, r, r * 0.82, 0, 0, 7);
+  if (boss) {
+    cx.save(); cx.clip(); const t = 12;
+    for (let yy = -r; yy < r; yy += t) for (let xx = -r; xx < r; xx += t) { cx.fillStyle = ((Math.floor((xx + r) / t) + Math.floor((yy + r) / t)) % 2) ? '#ff00dc' : '#111'; cx.fillRect(xx, yy, t, t); }
+    cx.restore(); cx.strokeStyle = '#000'; cx.lineWidth = 3; cx.stroke();
+  } else {
+    cx.fillStyle = ['#7be36a', '#6ad8c9', '#a6e05a', '#b9b9b9', '#8fe0a0', '#e0d35a'][s.kind % 6]; cx.fill(); cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; cx.stroke();
+    cx.fillStyle = 'rgba(255,255,255,.45)'; cx.beginPath(); cx.ellipse(-6, -6, 4, 3, -0.5, 0, 7); cx.fill();
+  }
+  cx.fillStyle = boss ? '#fff' : '#1b1f17'; const e = boss ? 9 : 4; cx.beginPath(); cx.arc(-r * 0.32, -r * 0.1, e * 0.5, 0, 7); cx.arc(r * 0.32, -r * 0.1, e * 0.5, 0, 7); cx.fill();
+  cx.restore();
+  cx.font = (boss ? '800 13px' : '600 10px') + ' ui-monospace,Consolas,monospace'; cx.textAlign = 'center';
+  const label = boss ? 'MISSING_TEXTURE' : SLIME_NAMES[s.kind] || 'slime';
+  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, s.y - r - 8); cx.fillStyle = boss ? '#ff7bf0' : '#e8ffe0'; cx.fillText(label, s.x, s.y - r - 8);
+  if (s.hp < s.max || boss) { const bw = boss ? 80 : 28; cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw, 4); cx.fillStyle = boss ? '#ff00dc' : '#7be36a'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw * Math.max(0, s.hp) / s.max, 4); }
+}
+function drawSign(s) {
+  cx.fillStyle = '#7a5530'; cx.fillRect(s.x - 3, s.y - 6, 6, 22);
+  cx.font = '800 9px system-ui,sans-serif'; const w = cx.measureText(s.title).width + 14;
+  cx.fillStyle = '#c99a5b'; cx.strokeStyle = '#4a3218'; cx.lineWidth = 2; cx.beginPath(); cx.roundRect(s.x - w / 2, s.y - 26, w, 22, 4); cx.fill(); cx.stroke();
+  cx.fillStyle = '#3a2610'; cx.textAlign = 'center'; cx.fillText(s.title, s.x, s.y - 12);
+}
+function drawWorld(now) {
+  // grass
+  const T = 80;
+  for (let y = 0; y < H; y += T) for (let x = 0; x < W; x += T) { cx.fillStyle = ((x / T + y / T) % 2) ? '#4f9a4a' : '#55a24f'; cx.fillRect(x, y, T, T); }
+  // path from spawn
+  cx.fillStyle = '#c9b27c'; cx.beginPath(); cx.arc(SPAWN.x, SPAWN.y, 110, 0, 7); cx.fill(); cx.setLineDash([8, 8]); cx.strokeStyle = 'rgba(255,255,255,.5)'; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
+  cx.fillRect(SPAWN.x, SPAWN.y - 4, W - SPAWN.x, 48);
+  for (const f of FLOWERS) { cx.fillStyle = f.c; cx.fillRect(f.x, f.y, 3, 3); }
+  for (const b of BUSHES) { cx.fillStyle = '#2f6b3a'; cx.beginPath(); cx.arc(b.x, b.y, b.r, 0, 7); cx.fill(); cx.fillStyle = '#3d8a45'; cx.beginPath(); cx.arc(b.x - b.r * .25, b.y - b.r * .25, b.r * .6, 0, 7); cx.fill(); }
+  // house: just a front
+  cx.fillStyle = '#e8d6b0'; cx.fillRect(380, 360, 100, 80); cx.fillStyle = '#b5523b'; cx.beginPath(); cx.moveTo(370, 362); cx.lineTo(430, 316); cx.lineTo(490, 362); cx.fill();
+  cx.fillStyle = '#6b4226'; cx.fillRect(418, 400, 24, 40); cx.fillStyle = '#9fd3ff'; cx.fillRect(392, 376, 18, 16); cx.fillRect(450, 376, 18, 16);
+  cx.fillStyle = 'rgba(0,0,0,.25)'; cx.fillRect(480, 330, 4, 110); // you can see it's flat
+  // cardboard tree
+  cx.fillStyle = '#a07a4a'; cx.fillRect(296, 960, 10, 30); cx.fillStyle = '#3e8f3e'; cx.beginPath(); cx.moveTo(268, 968); cx.lineTo(301, 890); cx.lineTo(334, 968); cx.fill();
+  cx.strokeStyle = '#a07a4a'; cx.lineWidth = 2; cx.stroke();
+  // area 2 fence
+  for (let y = 40; y < H - 40; y += 28) { cx.fillStyle = '#d9c39b'; cx.fillRect(W - 46, y, 8, 22); }
+  cx.fillStyle = '#d9c39b'; cx.fillRect(W - 50, 30, 4, H - 60); cx.fillStyle = '#e04a3a'; cx.fillRect(W - 48, SPAWN.y - 6, 12, 52);
+  cx.fillStyle = 'rgba(0,0,0,.35)'; cx.fillRect(W - 36, 0, 36, H);
+  for (const s of SIGNS) drawSign(s);
+  // tutorial guy
+  const bob = Math.sin(now / 400) * 2;
+  cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(GUY.x, GUY.y + 16, 15, 6, 0, 0, 7); cx.fill();
+  cx.fillStyle = '#f4f1e6'; cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; cx.beginPath(); cx.arc(GUY.x, GUY.y + bob, 15, 0, 7); cx.fill(); cx.stroke();
+  cx.fillStyle = '#1b1f17'; cx.beginPath(); cx.arc(GUY.x - 5, GUY.y - 3 + bob, 2.2, 0, 7); cx.arc(GUY.x + 5, GUY.y - 3 + bob, 2.2, 0, 7); cx.fill();
+  cx.fillStyle = '#ffd34d'; cx.font = '900 22px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillText('!', GUY.x, GUY.y - 22 + bob);
+  cx.font = '700 11px system-ui,sans-serif'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText('Tutorial', GUY.x, GUY.y + 32); cx.fillStyle = '#fff'; cx.fillText('Tutorial', GUY.x, GUY.y + 32);
+}
+
+function frame() {
+  const now = performance.now();
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0); cx.lineJoin = 'round';
+  cx.fillStyle = '#23502b'; cx.fillRect(0, 0, vw, vh);
+  const cam = camera();
+  cx.translate(-Math.round(cam.x), -Math.round(cam.y));
+  drawWorld(now);
+  if (tapMark && now - tapMark.t < 500) { const k = (now - tapMark.t) / 500; cx.strokeStyle = tapMark.atk ? `rgba(255,80,80,${1 - k})` : `rgba(255,255,255,${1 - k})`; cx.lineWidth = 2; cx.beginPath(); cx.arc(tapMark.x, tapMark.y, 6 + 14 * k, 0, 7); cx.stroke(); }
+  const me = interp('p', myId);
+  const draw = [];
+  if (snapB) {
+    for (const id of snapB.m.keys()) { const s = interp('m', id); draw.push({ y: s.y, f: () => drawSlime(s, now) }); }
+    for (const id of snapB.p.keys()) { const p = interp('p', id); draw.push({ y: p.y, f: () => drawPlayer(p, now) }); }
+  }
+  draw.sort((a, b) => a.y - b.y).forEach((d) => d.f());
+  // speech
+  if (snapB) for (const [id, b] of bubbles) { const p = interp('p', id); if (!p || now > b.until) { bubbles.delete(id); continue; } bubble(p.x, p.y - 22, b.text); }
+  if (me) {
+    if (Math.hypot(me.x - GUY.x, me.y - GUY.y) < 150) { if (now - guyAt > 4200) { guyAt = now; guyLine = (guyLine + 1) % GUY_LINES.length; } bubble(GUY.x, GUY.y - 30, GUY_LINES[guyLine], '#fff6c9'); }
+    for (const s of SIGNS) if (Math.hypot(me.x - s.x, me.y - s.y) < 110) bubble(s.x, s.y - 30, s.title + ': ' + s.text, '#f6e3c0');
+  }
+  // floating numbers and bits
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i], k = (now - f.t) / f.life; if (k >= 1) { fx.splice(i, 1); continue; }
+    cx.globalAlpha = 1 - k;
+    if (f.dot) { const t = (now - f.t) / 1000; cx.fillStyle = f.c; cx.fillRect(f.x + f.vx * t - 3, f.y + f.vy * t + 300 * t * t - 3, 6, 6); }
+    else { cx.font = '800 15px system-ui,sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.7)'; cx.strokeText(f.text, f.x, f.y - k * 26); cx.fillStyle = f.c; cx.fillText(f.text, f.x, f.y - k * 26); }
+    cx.globalAlpha = 1;
+  }
+  requestAnimationFrame(frame);
+}
+connect();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
