@@ -45,6 +45,7 @@
   #bagp .it { border:2px solid #e3dcc4; border-radius:12px; padding:6px; text-align:center; font-size:12px; line-height:1.25; cursor:pointer; background:#fff; }
   #bagp .it.on { border-color:#1b1f17; background:#fff6c9; }
   #bagp .it.no { opacity:.45; cursor:default; }
+  #bagp .it.goal { border-color:#ffd700; border-style:dashed; cursor:default; }
   #bagp .it canvas { position:static; width:56px; height:56px; display:block; margin:0 auto 2px; }
   #bagp .it b { display:block; font-size:12px; }
   #bagp .it i { display:block; font-style:normal; font-size:11px; opacity:.7; }
@@ -66,6 +67,7 @@
   #mep .sw { width:34px; height:34px; padding:0; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 2px #e3dcc4; }
   #mep .sw.on { box-shadow:0 0 0 3px #1b1f17; }
   #mep .stats { font-size:13px; opacity:.75; margin-top:4px; }
+  .gbar { height:5px; background:#e6e0cc; border-radius:3px; margin-top:4px; overflow:hidden; } .gbar div { height:100%; background:#ffd700; }
   #mep .close { position:sticky; top:0; float:right; height:36px; padding:0 12px; }
   .coinrow { font-size:12px; margin-top:3px; opacity:.95; } .coinrow b { color:#ffe36b; }
   #act { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(64px + env(safe-area-inset-bottom)); display:flex; gap:8px; }
@@ -124,7 +126,7 @@
 <div id="bagp"><button class="close" id="bagx">Close</button><h2>Bag</h2><div class="sub" id="bagsub"></div><div class="grid" id="baggrid"></div></div>
 <div id="status">Connecting to the only server…</div>
 <script type="module">
-import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked } from './items.js';
+import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, QUESTS_PER_DAY } from './items.js';
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
@@ -210,7 +212,7 @@ function connect() {
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
 function toMap(arr, keys) { const out = new Map(); for (const a of arr) { const o = {}; keys.forEach((k, i) => o[k] = a[i]); out.set(o.id, o); } return out; }
-const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills', 'wear', 'look', 'bot'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind'];
+const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills', 'wear', 'look', 'bot', 'ot'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind'];
 function onSnap(m) {
   snapA = snapB || { p: new Map(), m: new Map() };
   snapB = { p: toMap(m.p, PK), m: toMap(m.m, MK) };
@@ -227,9 +229,9 @@ function onSnap(m) {
   const me = snapB.p.get(myId);
   if (me) {
     $('nm').innerHTML = ''; $('nm').append(me.name + ' '); const sm = document.createElement('small'); sm.textContent = '✎'; $('nm').append(sm);
-    $('lv').textContent = me.lvl >= 5 ? `Lv 5 (max) · ${me.kills} kills` : `Lv ${me.lvl} · ${me.kills} kills`;
+    $('lv').textContent = me.lvl >= 5 ? `Lv 5 (max)${me.ot ? ' ★' + me.ot + ' overtime' : ''} · ${me.kills} kills` : `Lv ${me.lvl} · ${me.kills} kills`;
     $('hp').firstChild.style.width = (100 * me.hp / me.max) + '%';
-    $('xp').firstChild.style.width = me.lvl >= 5 ? '100%' : (100 * me.xp / me.need) + '%';
+    $('xp').firstChild.style.width = Math.min(100, 100 * me.xp / (me.need || 1)) + '%'; $('xp').firstChild.style.background = me.lvl >= 5 ? '#ffb02e' : '';
   }
 }
 function nameOf(id) { const p = snapB && snapB.p.get(id); return p ? p.name : 'someone'; }
@@ -254,12 +256,14 @@ function onEvent(e) {
     for (let i = 0; i < (e.boss ? 60 : 18); i++) fx.push({ x: e.x, y: e.y, vx: (Math.random() - .5) * (e.boss ? 520 : 320), vy: (Math.random() - .75) * (e.boss ? 480 : 320), dot: true, sz: 4 + Math.random() * 5, c: e.boss ? (i % 2 ? '#ff00dc' : '#111') : ['#7be36a', '#b6ff9e', '#4fbf45'][i % 3], t: now, life: 750 });
     fx.push({ x: e.x, y: e.y, ring: true, r: e.boss ? 120 : 46, c: e.boss ? '#ff7bf0' : '#e8ffe0', t: now, life: e.boss ? 600 : 350 });
     if (e.helpers > 1 && !e.boss) fx.push({ x: e.x, y: e.y - 40, text: `teamwork ×${e.helpers}`, c: '#ffd34d', t: now, life: 1100 });
-    if (mine) { fx.push({ x: e.x, y: e.y - 20, text: (snapB.p.get(myId) || {}).lvl >= 5 ? 'XP: still capped' : '+' + (e.xp || 1) + ' XP', c: '#ffd34d', t: now + 120, life: 900, big: 0.9 }); shake(e.boss ? 14 : 4); sfx(e.boss ? 'boss' : 'kill'); }
+    if (mine) { fx.push({ x: e.x, y: e.y - 20, text: (snapB.p.get(myId) || {}).lvl >= 5 ? '+' + (e.xp || 1) + ' overtime' : '+' + (e.xp || 1) + ' XP', c: '#ffd34d', t: now + 120, life: 900, big: 0.9 }); shake(e.boss ? 14 : 4); sfx(e.boss ? 'boss' : 'kill'); }
     else if (near(e)) sfx('kill', 0, 0.3);
   }
   else if (e.e === 'lvl' && e.id === myId) { sfx('lvl'); for (let i = 0; i < 30; i++) { const me = snapB.p.get(myId); if (me) fx.push({ x: me.x, y: me.y, vx: Math.cos(i / 30 * 6.28) * 200, vy: Math.sin(i / 30 * 6.28) * 200 - 80, dot: true, sz: 5, c: '#ffd34d', t: now, life: 800 }); } }
   if (e.e === 'lvl' && e.id === myId) toast(e.cap ? 'LEVEL 5 (MAX)' : 'LEVEL ' + e.lvl + '!', e.cap ? "That's every level they made." : ['Nothing new unlocked. The skill tree is a picture.', '+2 max HP. That was the whole budget.', 'Your armor is the same. It was always a texture.'][(e.lvl - 2) % 3]);
   else if (e.e === 'lvl') log(`${nameOf(e.id)} reached level ${e.lvl}.`, true);
+  if (e.e === 'ot' && e.id === myId) { sfx('lvl'); toast('OVERTIME ★' + e.ot, ['Unpaid. Still counts.', 'Nobody asked you to stay late. You stayed.', 'HR has been notified. HR is a placeholder.'][e.ot % 3]); }
+  else if (e.e === 'ot' && e.ot % 10 === 0) log(`${nameOf(e.id)} reached overtime ★${e.ot}.`, true);
   else if (e.e === 'fhit') {
     swings.set(e.by, now); fenceShake = now; const mine = e.by === myId;
     fx.push({ x: FENCE_X + (Math.random() - .5) * 16, y: e.y - 24, text: (e.crit ? 'CRIT ' : '') + '-' + e.dmg, c: e.crit ? '#ff9a3d' : mine ? '#fff' : '#ffe08a', t: now, life: 700, big: e.crit ? 1.5 : 1 });
@@ -302,13 +306,13 @@ function toast(big, small) { const t = $('toast'); t.innerHTML = ''; t.append(bi
 // ---------- your character, kept on the server (the browser only keeps your save code) ----------
 const idx = (id) => ITEMS.findIndex((it) => it.id === id);
 let myKey = store.get('ut_key') || '', bag = {}, wear = {}, coins = 0, stats = { kills: 0, deaths: 0, fence: 0, combo: 0, found: 0, lvl: 1, boss: 0, sets: 0 };
-let titlesHave = [0], myQuest = null, look = [0, 0, 0, 0], worldEvent = null, gotMe = false;
+let seen = [], qleft = 5, titlesHave = [0], myQuest = null, look = [0, 0, 0, 0], worldEvent = null, gotMe = false;
 try { const l = JSON.parse(store.get('ut_look') || 'null'); if (Array.isArray(l)) look = [0, 1, 2].map((i) => Number.isInteger(l[i]) ? l[i] : 0).concat([0]); } catch {}
 function sendHi() { send({ t: 'hi', key: myKey || undefined, name: myName, hue: myHue, look }); }
 function onMe(m) {
   gotMe = true;
   myName = m.name; store.set('ut_name', myName); myHue = m.hue; store.set('ut_hue', myHue); look = m.look; store.set('ut_look', JSON.stringify(look));
-  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest;
+  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest; seen = m.seen || []; qleft = m.qleft ?? QUESTS_PER_DAY;
   $('coins').textContent = coins.toLocaleString();
   if ($('bagp').classList.contains('open')) renderBag();
   if ($('mep').classList.contains('open')) renderMe();
@@ -322,7 +326,7 @@ function onLoot(i, lx, ly, from, why) {
   const auto = n === 1 && (!cur || it.r >= cur.r);
   if (auto) wearItem(it.slot, i);
   const rar = RARITY[it.r];
-  const head = from ? `GIFT FROM ${from}: ` : why === 'shop' ? 'BOUGHT: ' : why === 'wish' ? 'WISH GRANTED: ' : 'LOOT: ';
+  const head = from ? `GIFT FROM ${from}: ` : why === 'shop' ? 'BOUGHT: ' : why === 'wish' ? 'WISH GRANTED: ' : why === 'goal' ? 'EARNED: ' : 'LOOT: ';
   toast(head + it.name, n > 1 ? `Another one. You have ${n}. Stats: none.` : `${rar.name}. ${it.text}` + (auto ? ' (Wearing it.)' : ''));
   const me = snapB && snapB.p.get(myId), now = performance.now();
   if (me) {
@@ -352,8 +356,8 @@ function setInfo() { // how many pieces of each set you're wearing
   return SETS.map((st) => ({ st, n: st.items.filter((id) => worn.has(id)).length, have: st.items.filter((id) => bag[id] > 0).length }));
 }
 function renderBag() {
-  const found = ITEMS.filter((it) => bag[it.id] > 0).length;
-  $('bagsub').textContent = giveTo != null ? `Tap an item to give one to ${nameOf(giveTo)}.` : `${found} of ${ITEMS.length} found · ${coins.toLocaleString()} coins. Tap to wear. Stats: none, on everything.`;
+  const found = stats.found || 0;
+  $('bagsub').textContent = giveTo != null ? `Tap an item to give one to ${nameOf(giveTo)}. Unfinished and Finished items are bound to you.` : `${found} of ${ITEMS.length} found yourself · ${coins.toLocaleString()} coins. Tap to wear. Stats: none, on everything.`;
   const g = $('baggrid'); g.innerHTML = '';
   const head = (t) => { const h = document.createElement('h3'); h.textContent = t; h.style.gridColumn = '1/-1'; h.style.margin = '8px 0 0'; g.append(h); };
   if (giveTo == null) {
@@ -375,13 +379,18 @@ function renderBag() {
       const d = document.createElement('div'); d.className = 'it' + (on ? ' on' : '') + (have ? '' : ' no');
       const c = have ? iconCanvas(i) : (() => { const c2 = document.createElement('canvas'); c2.width = 112; c2.height = 112; const k = c2.getContext('2d'); k.fillStyle = '#bbb'; k.font = '800 52px system-ui'; k.textAlign = 'center'; k.fillText('?', 56, 76); return c2; })();
       const b = document.createElement('b'); b.textContent = have ? it.name : '???'; b.style.color = have && it.r ? ['', '#2f8a25', '#1f6fc4', '#b0249e', '#b8860b'][it.r] : '';
-      const r = document.createElement('i'); r.textContent = have ? `${RARITY[it.r].name}${bag[it.id] > 1 ? ' · ×' + bag[it.id] : ''}${on ? ' · wearing' : ''}` : RARITY[it.r].name;
+      const goal = GOALS[it.id], gv = goal ? Math.min(goal.n, stats[goal.k] || 0) : 0;
+      const r = document.createElement('i'); r.textContent = have ? `${RARITY[it.r].name}${bag[it.id] > 1 ? ' · ×' + bag[it.id] : ''}${on ? ' · wearing' : ''}${isBound(it) ? ' · bound' : ''}`
+        : goal ? `${RARITY[it.r].name} · ${goal.how}: ${gv.toLocaleString()}/${goal.n.toLocaleString()}`
+        : it.r === 3 ? `${RARITY[it.r].name} · boss loot after ${EPIC_BOSSES} bosses (${Math.min(EPIC_BOSSES, stats.boss || 0)}/${EPIC_BOSSES})` : RARITY[it.r].name;
       d.append(c, b, r);
+      if (goal && !have) { d.className = 'it goal'; d.replaceChild(iconCanvas(i), c); d.querySelector('canvas').style.filter = 'grayscale(1) opacity(.35)'; b.textContent = it.name; b.style.color = '#b8860b'; const bar = document.createElement('div'); bar.className = 'gbar'; const fill = document.createElement('div'); fill.style.width = (100 * gv / goal.n) + '%'; bar.append(fill); d.append(bar); }
+      if (giveTo != null && isBound(it)) { d.classList.add('no'); r.textContent = '🔒 Bound to you'; }
       if (have) {
         d.title = it.text;
         d.onclick = () => {
           sfx('click');
-          if (giveTo != null) { send({ t: 'give', to: giveTo, item: i }); giveTo = null; $('bagp').classList.remove('open'); return; }
+          if (giveTo != null) { if (isBound(it)) { toast('BOUND TO YOU', 'Trading this wasn\'t coded. You earned it, so it stays.'); return; } send({ t: 'give', to: giveTo, item: i }); giveTo = null; $('bagp').classList.remove('open'); return; }
           wearItem(it.slot, on ? null : i); renderBag();
         };
       }
@@ -542,7 +551,7 @@ const bodyColor = (hue, now) => hue >= 360 ? `hsl(${(now / 8) % 360} 75% 58%)` :
 function opt(label, on, click, extra) { const b = document.createElement('button'); b.className = 'opt' + (on ? ' on' : '') + (extra || ''); b.textContent = label; b.onclick = () => { sfx('click'); click(); }; return b; }
 const fmtKey = (k) => (k || '').replace(/(.{5})(?=.)/g, '$1-');
 function renderMe() {
-  $('mestats').textContent = `Lifetime: ${(stats.kills || 0).toLocaleString()} kills · ${stats.deaths || 0} deaths · best combo ×${stats.combo || 0} · ${stats.found || 0}/${ITEMS.length} items · ${coins.toLocaleString()} coins`;
+  $('mestats').textContent = `Lifetime: ${(stats.kills || 0).toLocaleString()} kills · ${stats.deaths || 0} deaths · best combo ×${stats.combo || 0} · ${stats.boss || 0} bosses · ${stats.days || 0} days played · ${stats.ships || 0} patches shipped · overtime ★${stats.ot || 0} · ${stats.found || 0}/${ITEMS.length} items · ${coins.toLocaleString()} coins`;
   const col = $('mecol'); col.innerHTML = '';
   for (const h of HUES) { const b = document.createElement('button'); b.className = 'sw' + (myHue === h ? ' on' : ''); b.style.background = h >= 360 ? 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' : `hsl(${h} 70% 55%)`; b.title = h >= 360 ? 'Rainbow (unstable)' : ''; b.onclick = () => { sfx('click'); myHue = h; saveMe(); }; col.append(b); }
   const rows = [['meshape', SHAPES, 0], ['meeyes', EYES, 1], ['memouth', MOUTHS, 2]];
@@ -552,7 +561,7 @@ function renderMe() {
   $('mesnd').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
   $('mekey').textContent = myKey ? fmtKey(myKey) : '(not made yet)';
   const q = myQuest && QUESTS[myQuest.i];
-  $('mequest').textContent = q ? `Quest from NPC_02: ${q.text} ${myQuest.have}/${q.n} (reward ${q.coins} coins)` : isUnlocked(patch, 'quests') ? 'No quest. NPC_02 has some.' : 'Quests arrive in a future patch.';
+  $('mequest').textContent = q ? `Quest from NPC_02: ${q.text} ${myQuest.have}/${q.n} (reward ${q.coins} coins)` : isUnlocked(patch, 'quests') ? (qleft > 0 ? `No quest. NPC_02 has ${qleft} left today.` : 'NPC_02 clocked out for today. Union rules.') : 'Quests arrive in a future patch.';
 }
 function openMe() { $('mebtn').classList.remove('pulse'); $('mename').value = myName; renderMe(); $('mep').classList.add('open'); $('bagp').classList.remove('open'); $('shopp').classList.remove('open'); }
 $('mebtn').onclick = openMe;
@@ -683,7 +692,7 @@ function openCard(p) {
   const t = p.look && p.look[3] > 0 && TITLES[p.look[3]] ? '«' + TITLES[p.look[3]].name + '» · ' : '';
   const worn = (p.wear || []).filter((i) => i >= 0).map((i) => ITEMS[i].name);
   const wid = new Set((p.wear || []).filter((i) => i >= 0).map((i) => ITEMS[i].id)); const ws2 = SETS.find((x) => x.items.filter((id) => wid.has(id)).length >= 3); p.setName = ws2 && ws2.name;
-  $('pcsub').textContent = `${t}Level ${p.lvl}${p.setName ? ' · Set: ' + p.setName : ''}${p.bot ? ' · a placeholder bot the devs added so it feels busy' : ''}. Wearing: ${worn.join(', ') || 'nothing (respect)'}.`;
+  $('pcsub').textContent = `${t}Level ${p.lvl}${p.ot ? ' ★' + p.ot + ' overtime' : ''}${p.setName ? ' · Set: ' + p.setName : ''}${p.bot ? ' · a placeholder bot the devs added so it feels busy' : ''}. Wearing: ${worn.join(', ') || 'nothing (respect)'}.`;
   $('pcmute').textContent = mutedNames.has(p.name) ? '🔊 Unmute' : '🔇 Mute';
   for (const id of ['pcgive', 'pcreport']) $(id).style.display = p.bot ? 'none' : '';
   $('pcard').classList.add('open');
@@ -739,7 +748,7 @@ function drawPlayer(p, now) {
   cx.restore();
 }
 function drawTag(p) {
-  const isMe = p.id === myId, tag = p.name + ' · ' + p.lvl;
+  const isMe = p.id === myId, tag = p.name + ' · ' + p.lvl + (p.ot ? '★' + p.ot : '');
   cx.font = (isMe ? '700 ' : '600 ') + '12px system-ui,sans-serif'; cx.textAlign = 'center';
   cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText(tag, p.tagX, p.tagY); cx.fillStyle = isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, p.tagX, p.tagY);
   const ti = p.look && p.look[3];
@@ -892,7 +901,7 @@ function frame() {
     const placed = [];
     cx.font = '700 12px system-ui,sans-serif';
     for (const p of ps) {
-      const w = cx.measureText(p.name + ' · ' + p.lvl).width + 6, th = p.look && p.look[3] > 0 ? 26 : 14;
+      const w = cx.measureText(p.name + ' · ' + p.lvl + (p.ot ? '★' + p.ot : '')).width + 6, th = p.look && p.look[3] > 0 ? 26 : 14;
       let y = p.y + 30;
       for (let tries = 0; tries < 12; tries++) {
         const hit = placed.find((r) => Math.abs(r.x - p.x) < (r.w + w) / 2 && y < r.y + r.h && r.y < y + th);

@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { ITEMS, RARITY, DROP_CHANCE, rollItem, PATCHES, patchGoal, patchName, unlocked, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SETS,
-  PRICES, shopStock, WISH_COST, QUESTS } from "../public/items.js";
+  PRICES, shopStock, WISH_COST, QUESTS, QUESTS_PER_DAY, EPIC_BOSSES, isBound, GIFT_MIN_KILLS, GIFTS_PER_DAY, GOALS, SHIP_KILLS, DAY_KILLS,
+  otNeed } from "../public/items.js";
 import { isBad, cleanChat } from "./filter.js";
 
 // One shared world for everyone. The browser connects to /ws; everything else is the static page.
@@ -225,20 +226,23 @@ export class World extends DurableObject {
       }
       const look = Array.isArray(m.look) ? m.look.slice(0, 3).map((v, i) => (Number.isInteger(v) && v >= 0 && v < [SHAPES.length, EYES.length, MOUTHS.length][i] ? v : 0)).concat([0]) : [0, 0, 0, 0];
       acct = { name, hue: Number.isFinite(m.hue) ? Math.floor(clamp(m.hue, 0, 360)) : Math.floor(Math.random() * 360), look,
-        bag: {}, wear: {}, lvl: 1, xp: 0, coins: 0, stats: { kills: 0, deaths: 0, fence: 0, combo: 0, boss: 0, sets: 0, lvl: 1 },
-        tu: [0], quest: null, mutedUntil: 0, created: Date.now() };
+        bag: {}, wear: {}, lvl: 1, xp: 0, coins: 0, stats: { kills: 0, deaths: 0, fence: 0, combo: 0, boss: 0, sets: 0, lvl: 1, days: 0, ships: 0, ot: 0 },
+        seen: [], otxp: 0, tu: [0], quest: null, mutedUntil: 0, created: Date.now() };
       await st.put({ ["a:" + h]: acct, ["n:" + name.toLowerCase()]: h });
       this.tell(p, { t: "key", key });
     }
     // fill in anything an older save is missing, so a schema change never breaks old characters
     acct.bag = acct.bag || {}; acct.wear = acct.wear || {}; acct.tu = acct.tu || [0]; acct.coins = acct.coins || 0;
-    acct.stats = Object.assign({ kills: 0, deaths: 0, fence: 0, combo: 0, boss: 0, sets: 0, lvl: 1 }, acct.stats || {});
+    acct.stats = Object.assign({ kills: 0, deaths: 0, fence: 0, combo: 0, boss: 0, sets: 0, lvl: 1, days: 0, ships: 0, ot: 0 }, acct.stats || {});
+    acct.seen = Array.isArray(acct.seen) ? acct.seen : Object.keys(acct.bag); acct.otxp = acct.otxp || 0;
     acct.look = Array.isArray(acct.look) ? acct.look : [0, 0, 0, 0]; acct.lvl = acct.lvl || 1; acct.xp = acct.xp || 0;
     if (!this.players.has(p.id)) return; // they left while we were loading
     p.acct = acct; p.keyHash = h; p.name = acct.name; p.hue = acct.hue; p.look = acct.look;
     p.lvl = acct.lvl; p.xp = acct.xp; p.max = 10 + 2 * (acct.lvl - 1); p.hp = p.max;
     p.wear = SLOTS.map((sl) => { const id = acct.wear[sl]; const i = ITEMS.findIndex((it) => it.id === id); return i >= 0 && acct.bag[id] > 0 ? i : -1; });
     p.named = true;
+    this.creditShip(p); // a patch they helped with may have shipped while they were away
+    this.checkTitles(p);
     this.sendMe(p);
     const alone = this.humans() === 1;
     this.events.push({ e: "sys", text: alone
@@ -248,9 +252,11 @@ export class World extends DurableObject {
 
   sendMe(p) {
     const a = p.acct;
-    const found = Object.keys(a.bag).filter((k) => a.bag[k] > 0).length;
-    this.tell(p, { t: "me", name: a.name, hue: a.hue, look: a.look, bag: a.bag, wear: a.wear, coins: a.coins, stats: { ...a.stats, found }, titles: a.tu,
-      quest: a.quest, muted: a.mutedUntil > Date.now() });
+    const today = Math.floor(Date.now() / DAY);
+    this.tell(p, { t: "me", name: a.name, hue: a.hue, look: a.look, bag: a.bag, wear: a.wear, coins: a.coins, stats: this.statsOf(a), titles: a.tu,
+      quest: a.quest, muted: a.mutedUntil > Date.now(), seen: a.seen,
+      qleft: QUESTS_PER_DAY - (a.qd && a.qd.d === today ? a.qd.n : 0), dayk: a.dk && a.dk.d === today ? a.dk.k : 0,
+      shipk: a.pk && a.pk.p === this.patch ? a.pk.k : 0 });
   }
 
   async rename(p, raw) {
@@ -274,17 +280,37 @@ export class World extends DurableObject {
     this.ctx.storage.put("a:" + p.keyHash, p.acct);
   }
 
+  // lifetime stats used by titles and goals. "found" only counts items you got yourself, never gifts.
+  statsOf(a) {
+    const fin = ITEMS.filter((it) => it.r === 4 && a.bag[it.id] > 0).length;
+    return { ...a.stats, found: a.seen.length, fin, lvl: Math.max(a.stats.lvl || 1, a.lvl) };
+  }
+
   hasTitle(a, i) {
     const t = TITLES[i]; if (!t) return false; if (!t.need) return true;
-    const found = Object.keys(a.bag).filter((k) => a.bag[k] > 0).length;
-    const s = { ...a.stats, found, lvl: Math.max(a.stats.lvl || 1, a.lvl) };
+    const s = this.statsOf(a);
     return Object.entries(t.need).every(([k, v]) => (s[k] || 0) >= v);
   }
 
   checkTitles(p) {
     const a = p.acct; if (!a) return;
+    // Finished items: earned by long goals, never dropped
+    const s = this.statsOf(a);
+    for (const [id, g] of Object.entries(GOALS)) {
+      if (a.seen.includes(id) || (s[g.k] || 0) < g.n) continue;
+      this.grant(p, ITEMS.findIndex((it) => it.id === id), p, "goal");
+    }
     for (let i = 0; i < TITLES.length; i++) if (!a.tu.includes(i) && this.hasTitle(a, i)) {
       a.tu.push(i); this.tell(p, { t: "title", i }); p.dirty = true;
+    }
+  }
+
+  // patches you helped ship (SHIP_KILLS+ kills while it was the next patch)
+  creditShip(p) {
+    const a = p.acct; if (!a || !a.pk) return;
+    if (a.pk.p < this.patch) {
+      const ok = a.pk.k >= SHIP_KILLS; a.pk = null; p.dirty = true;
+      if (ok) { a.stats.ships = (a.stats.ships || 0) + 1; this.tell(p, { t: "err", text: `You helped ship a patch. Patches shipped with your help: ${a.stats.ships}.` }); this.checkTitles(p); }
     }
   }
 
@@ -317,7 +343,13 @@ export class World extends DurableObject {
   give(p, to, item) {
     const q = this.players.get(to), it = ITEMS[item];
     if (!q || !q.acct || q === p || !it || !(p.acct.bag[it.id] > 0)) return;
+    if (isBound(it)) return this.tell(p, { t: "err", text: "Trading this wasn't coded. It's bound to you. You earned it, so it stays." });
+    if ((p.acct.stats.kills || 0) < GIFT_MIN_KILLS) return this.tell(p, { t: "err", text: `Giving unlocks at ${GIFT_MIN_KILLS} kills. Anti-scam team (one guy) insists.` });
+    const today = Math.floor(Date.now() / DAY);
+    if (!p.acct.gd || p.acct.gd.d !== today) p.acct.gd = { d: today, n: 0 };
+    if (p.acct.gd.n >= GIFTS_PER_DAY) return this.tell(p, { t: "err", text: `You've given ${GIFTS_PER_DAY} things today. The gift wrap budget ran out. Try tomorrow.` });
     if (dist(p, q) > 220) return this.tell(p, { t: "err", text: "Stand closer to give something. Shipping isn't implemented." });
+    p.acct.gd.n++;
     p.acct.bag[it.id]--;
     if (p.acct.bag[it.id] <= 0) {
       delete p.acct.bag[it.id];
@@ -334,9 +366,10 @@ export class World extends DurableObject {
   grant(p, item, from, why) {
     const it = ITEMS[item];
     p.acct.bag[it.id] = (p.acct.bag[it.id] || 0) + 1; p.dirty = true;
+    if (!p.acct.seen.includes(it.id)) p.acct.seen.push(it.id); // you found it yourself (gifts never come through here)
     this.tell(p, { t: "loot", item, x: Math.round(from.x), y: Math.round(from.y), why });
     if (it.r >= 2) this.events.push({ e: "sys", text: it.r === 4
-      ? `${p.name} found ${it.name}. It's FINISHED. Fully. Everyone stop and look.`
+      ? `${p.name} EARNED ${it.name}. It's FINISHED. Fully. Everyone stop and look.`
       : it.r === 3 ? `${p.name} found ${it.name} (Unfinished). It doesn't exist. They're wearing it anyway.`
       : `${p.name} found ${it.name} (${RARITY[it.r].name}).` });
     if (it.r === 4) this.events.push({ e: "finished", id: p.id, item });
@@ -369,6 +402,9 @@ export class World extends DurableObject {
     const a = p.acct;
     if (a.quest && a.quest.have >= QUESTS[a.quest.i].n) {
       const Q = QUESTS[a.quest.i];
+      const today = Math.floor(Date.now() / DAY);
+      if (!a.qd || a.qd.d !== today) a.qd = { d: today, n: 0 };
+      a.qd.n++;
       a.coins += Q.coins; a.quest = null; p.dirty = true;
       this.tell(p, { t: "err", text: `Quest done. +${Q.coins} coins. NPC_02 says: "QUEST_COMPLETE_STRING".` });
       this.events.push({ e: "quest", id: p.id });
@@ -377,6 +413,8 @@ export class World extends DurableObject {
       return;
     }
     if (a.quest) return this.tell(p, { t: "err", text: "You already have a quest. Check 🎨 Me for progress." });
+    const today = Math.floor(Date.now() / DAY);
+    if (a.qd && a.qd.d === today && a.qd.n >= QUESTS_PER_DAY) return this.tell(p, { t: "err", text: `NPC_02 clocked out after ${QUESTS_PER_DAY} quests. Union rules. New quests tomorrow.` });
     const choices = QUESTS.map((q, i) => i).filter((i) => {
       const k = QUESTS[i].k;
       if ((k === "big" || k === "fast") && !unlocked(this.patch, "enemies")) return false;
@@ -414,7 +452,7 @@ export class World extends DurableObject {
     }
     const K = kindOf(kind);
     const hp = kind === BOSS ? 30 + 12 * n : kind === BOSS2 ? 40 + 15 * n : K.hp;
-    const s = { id, x, y, hp, kind, r: K.r, dmg: K.dmg, hitters: new Set() };
+    const s = { id, x, y, hp, kind, r: K.r, dmg: K.dmg, hitters: new Set(), dmgBy: new Map() };
     if (kind === BUG) { s.until = Date.now() + 90000; }
     s.max = s.hp; s.hopAt = Date.now() + Math.random() * 1500; s.vx = 0; s.vy = 0; s.hopEnd = 0; s.lastBite = 0;
     s.lagAt = Date.now() + 2000 + Math.random() * 1500; s.slamAt = Date.now() + 3000; s.slam = null;
@@ -473,7 +511,7 @@ export class World extends DurableObject {
               this.events.push({ e: "fhit", by: p.id, y: Math.round(t.y), dmg, crit, combo: p.combo });
               if (this.fence.hp <= 0) this.openArea2(p);
             } else {
-              t.hp -= dmg; t.hitters.add(p.id);
+              t.hp -= dmg; t.hitters.add(p.id); t.dmgBy.set(p.id, (t.dmgBy.get(p.id) || 0) + dmg);
               this.events.push({ e: "hit", by: p.id, id: t.id, dmg, crit, combo: p.combo });
               if (t.hp <= 0) this.kill(t);
             }
@@ -569,30 +607,55 @@ export class World extends DurableObject {
     this.slimes.delete(s.id);
     this.total++; this.dirty = true;
     this.patchKills++;
+    const today = Math.floor(Date.now() / DAY);
+    // count this kill toward the patch being built and toward today's play, for everyone who hit it
+    for (const pid of s.hitters) {
+      const a = this.players.get(pid) && this.players.get(pid).acct; if (!a) continue;
+      if (!a.pk || a.pk.p !== this.patch) a.pk = { p: this.patch, k: 0 };
+      a.pk.k++;
+      if (!a.dk || a.dk.d !== today) a.dk = { d: today, k: 0 };
+      if (++a.dk.k === DAY_KILLS) { a.stats.days = (a.stats.days || 0) + 1; }
+    }
     if (this.patchKills >= patchGoal(this.patch)) {
       const n = this.patch;
       this.patchKills = 0; this.patch++;
       const note = PATCHES[n] ? PATCHES[n].note : "Bug fixes and performance improvements.";
       this.events.push({ e: "patch", n: this.patch, name: patchName(n), note });
       this.events.push({ e: "sys", text: `Patch ${patchName(n)} shipped. ${note}` });
+      for (const q of this.players.values()) this.creditShip(q);
     }
-    const boss = isBoss(s.kind);
+    const boss = isBoss(s.kind), big = boss || s.kind === BUG;
     const xp = kindOf(s.kind).xp;
-    const coins = boss ? 10 : s.kind === BUG ? 8 : xp;
+    // bosses and THE BUG only reward people who really helped, not a single drive-by tap
+    const need = big ? Math.min(8, Math.ceil(s.max * 0.05)) : 0;
     for (const pid of s.hitters) {
       const p = this.players.get(pid);
       if (!p) continue;
       p.kills++;
+      const helped = (s.dmgBy.get(pid) || 0) >= need;
       if (p.acct) {
+        const coins = !helped ? 1 : boss ? 10 : s.kind === BUG ? 8 : xp;
         p.acct.coins += coins; this.tell(p, { t: "coins", n: p.acct.coins, add: coins, x: Math.round(s.x), y: Math.round(s.y) });
         this.stat(p, "kills", 1); this.questProgress(p, "kills", 1);
-        if (boss) { this.stat(p, "boss", 1); this.questProgress(p, "boss", 1); }
+        if (boss && helped) { this.stat(p, "boss", 1); this.questProgress(p, "boss", 1); }
         if (s.kind === BIG) this.questProgress(p, "big", 1);
         if (s.kind === FAST) this.questProgress(p, "fast", 1);
         const evx = this.event && this.event.kind === "rain" ? 2 : 1;
-        this.loot(p, boss || s.kind === BUG, Math.min(0.9, evx * (s.kind === TODO ? 0.5 : (s.kind === BIG || s.kind === LAG) ? 0.35 : DROP_CHANCE)), s);
+        if (big && !helped) this.tell(p, { t: "err", text: `You barely touched it, so you got a participation coin. Hit it at least ${need} damage for real loot.` });
+        else this.loot(p, big, Math.min(0.9, evx * (s.kind === TODO ? 0.5 : (s.kind === BIG || s.kind === LAG) ? 0.35 : DROP_CHANCE)), s);
       }
-      if (p.lvl >= LEVEL_CAP) continue;
+      if (p.lvl >= LEVEL_CAP) {
+        // past the cap, XP goes into unpaid overtime: a slow, endless flex
+        if (p.acct) {
+          p.acct.otxp += xp;
+          while (p.acct.otxp >= otNeed(p.acct.stats.ot || 0)) {
+            p.acct.otxp -= otNeed(p.acct.stats.ot || 0);
+            this.stat(p, "ot", 1);
+            this.events.push({ e: "ot", id: p.id, ot: p.acct.stats.ot });
+          }
+        }
+        continue;
+      }
       p.xp += xp;
       while (p.lvl < LEVEL_CAP && p.xp >= xpFor(p.lvl)) {
         p.xp -= xpFor(p.lvl); p.lvl++; p.max += 2; p.hp = p.max; this.stat(p, "lvl", 0, p.lvl);
@@ -605,12 +668,12 @@ export class World extends DurableObject {
       for (let i = 0; i < 3; i++) { const c = this.spawnSlime(false, false, Math.floor(Math.random() * SLIME_NAMES.length), s); c.hp = c.max = 2; }
     }
     if (s.kind === BUG) {
-      this.events.push({ e: "sys", text: `THE BUG was squashed by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who hit it got Rare loot or better. Marked as fixed.` });
+      this.events.push({ e: "sys", text: `THE BUG was squashed by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who really helped got Rare loot. Marked as fixed.` });
       if (this.event && this.event.kind === "bug") this.event = null;
     } else if (s.kind === BOSS2) {
-      this.events.push({ e: "sys", text: `FINAL_BOSS_v0.1 defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. The real final boss is in the sequel. Everyone who hit it got Rare loot or better.` });
+      this.events.push({ e: "sys", text: `FINAL_BOSS_v0.1 defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. The real final boss is in the sequel. Everyone who really helped got Rare loot or better.` });
     } else if (boss) {
-      this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who hit it got Rare loot or better. Some of it isn't finished.` });
+      this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who really helped got Rare loot or better. Some of it isn't finished.` });
     } else if (this.total % 100 === 0) {
       this.events.push({ e: "sys", text: `Everyone together has now killed ${this.total} slimes. New areas added by the devs: 0.` });
     }
@@ -621,7 +684,7 @@ export class World extends DurableObject {
 
   loot(p, boss, chance, s) {
     if (!boss && Math.random() >= chance) return;
-    this.grant(p, rollItem(Math.random, boss), s);
+    this.grant(p, rollItem(Math.random, boss, boss && (p.acct.stats.boss || 0) >= EPIC_BOSSES), s);
   }
 
   // ---------- world events: Slime Rain and Bug Bounty, every 7 to 12 minutes once patched in ----------
@@ -704,7 +767,7 @@ export class World extends DurableObject {
     for (const q of this.players.values()) {
       if (!q.named) continue;
       if (!q.bot) online++;
-      p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.xp, xpFor(q.lvl), q.kills, q.wear, q.look, q.bot ? 1 : 0]);
+      p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.lvl >= LEVEL_CAP && q.acct ? q.acct.otxp : q.xp, q.lvl >= LEVEL_CAP && q.acct ? otNeed(q.acct.stats.ot || 0) : xpFor(q.lvl), q.kills, q.wear, q.look, q.bot ? 1 : 0, q.acct ? q.acct.stats.ot || 0 : 0]);
     }
     for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind]);
     const ev = this.event ? [this.event.kind, Math.ceil((this.event.until - Date.now()) / 1000)] : null;

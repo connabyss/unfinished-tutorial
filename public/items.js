@@ -5,7 +5,7 @@ export const RARITY = [
   { name: "Uncommon", color: "#7be36a", weight: 30 },
   { name: "Rare", color: "#6cb6ff", weight: 10 },
   { name: "Unfinished", color: "#ff7bf0", weight: 0 }, // only from bosses
-  { name: "Finished", color: "#ffd700", weight: 0.4 },  // ultra rare: the only things the devs actually finished
+  { name: "Finished", color: "#ffd700", weight: 0 },  // never random: each one is earned with a long goal (GOALS below)
 ];
 
 export const ITEMS = [
@@ -85,11 +85,27 @@ export const SETS = [
 ];
 
 export const DROP_CHANCE = 0.3; // per person who hit a normal slime
+export const EPIC_BOSSES = 10;  // Unfinished boss loot starts after you've really helped kill this many bosses
+export const isBound = (it) => it.r >= 3; // Unfinished and Finished can't be given away
+export const GIFT_MIN_KILLS = 100, GIFTS_PER_DAY = 10;
 
-// Pick an item. rnd() returns 0..1. Bosses drop Rare or better (and sometimes something Finished).
-export function rollItem(rnd, boss) {
+// Every Finished item is earned with a long goal, never by luck. Progress shows in the Bag.
+export const GOALS = {
+  realhat: { k: "kills", n: 3000, how: "Kill 3,000 slimes" },
+  realsword: { k: "boss", n: 75, how: "Really help kill 75 bosses" },
+  realcape: { k: "days", n: 7, how: "Play on 7 different days (10+ kills each day)" },
+  realpet: { k: "found", n: 40, how: "Find 40 different items yourself (gifts don't count)" },
+  realtrail: { k: "ships", n: 5, how: "Help ship 5 patches (25+ kills during each one)" },
+};
+export const SHIP_KILLS = 25, DAY_KILLS = 10;
+// Overtime: after level 5 your XP keeps going into unpaid overtime levels, shown as a star next to your level.
+export const otNeed = (ot) => 40 + 10 * ot;
+
+// Pick an item. rnd() returns 0..1. Bosses drop Rare, or Unfinished (epic) for veterans (epic = true).
+// Finished items never drop: see GOALS.
+export function rollItem(rnd, boss, epic = false) {
   if (boss) {
-    const x = rnd(), tier = x < 0.04 ? 4 : x < 0.34 ? 3 : 2;
+    const tier = epic && rnd() < 0.15 ? 3 : 2;
     const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === tier);
     return pool[Math.floor(rnd() * pool.length)];
   }
@@ -109,7 +125,7 @@ export const PATCHES = [
   { id: "bench", tease: "a bench", note: "Added a bench. The legs are in the next patch.", x: 640, y: 780, title: "BENCH", text: "Legs coming in a future patch." },
   { id: "shop", unlock: "shop", tease: "THE SHOP", note: "The SHOP is open. It sells whatever the devs had lying around. Kills give coins.", x: 1080, y: 548, title: "SHOP (OPEN)", text: "Tap the Shop button while you stand here." },
   { id: "enemies", unlock: "enemies", tease: "3 new enemies", note: "New enemies: slime_fast, SLIME_BIG_PLACEHOLDER and lag_slime. They drop better loot." },
-  { id: "fountain", unlock: "fountain", tease: "a wishing fountain", note: "Added a wishing fountain. 10 coins for a random item. The water didn't load.", x: 1000, y: 380, title: "FOUNTAIN", text: "Toss 10 coins for a random item. Tap the Wish button." },
+  { id: "fountain", unlock: "fountain", tease: "a wishing fountain", note: "Added a wishing fountain. 25 coins for a random item. The water didn't load.", x: 1000, y: 380, title: "FOUNTAIN", text: "Toss 25 coins for a random item. Tap the Wish button." },
   { id: "boss2", unlock: "boss2", tease: "a new boss", note: "New boss: FINAL_BOSS_v0.1. It only has one attack. The animator quit." },
   { id: "npc", unlock: "quests", tease: "quests", note: "NPC_02 now gives quests. Nobody wrote the dialogue, so it just lists numbers.", x: 560, y: 520, title: "NPC_02", text: "QUEST_GIVER.exe. Tap the Quest button." },
   { id: "fence", unlock: "fence", tease: "a way into Area 2", note: "The Area 2 fence now has HP. Break it together to get in.", },
@@ -120,7 +136,7 @@ export const PATCHES = [
   { id: "spawn2", tease: "a second spawn point", note: "Added a second spawn point. It isn't connected to anything.", x: 1420, y: 1020, title: "SPAWN POINT 2", text: "Not connected to anything. Like the roadmap." },
 ];
 export const unlocked = (patch, feature) => PATCHES.slice(0, patch).some((p) => p.unlock === feature);
-export const patchGoal = (n) => 40 + 20 * n; // kills needed to ship patch number n (0-based)
+export const patchGoal = (n) => 40 + 20 * n + 5 * n * n; // kills needed to ship patch number n (0-based); later patches take longer
 export const patchName = (n) => "0.0." + (n + 1);
 
 // Character maker. Players send the index of each choice; the server only checks the range.
@@ -131,28 +147,35 @@ export const MOUTHS = ["None", "Smile", "Grumpy", "Open", "Mustache"];
 export const TITLES = [
   { name: "Fresh Install", need: null },
   { name: "Slime Intern", need: { kills: 25 }, how: "Kill 25 slimes" },
-  { name: "Beta Tester", need: { kills: 150 }, how: "Kill 150 slimes" },
+  { name: "Beta Tester", need: { kills: 300 }, how: "Kill 300 slimes" },
   { name: "Unpaid QA", need: { deaths: 5 }, how: "Die 5 times" },
   { name: "Fence Enjoyer", need: { fence: 60 }, how: "Hit the Area 2 fence 60 times" },
   { name: "Combo Goblin", need: { combo: 20 }, how: "Land a 20-hit combo" },
   { name: "Hat Haver", need: { found: 5 }, how: "Find 5 different items" },
   { name: "Max Level (it's 5)", need: { lvl: 5 }, how: "Reach level 5" },
   { name: "Boss Puncher", need: { boss: 1 }, how: "Help kill MISSING_TEXTURE" },
-  { name: "Collector", need: { found: 25 }, how: "Find 25 different items" },
+  { name: "Collector", need: { found: 30 }, how: "Find 30 different items yourself" },
   { name: "Completionist", need: { found: ITEMS.length }, how: `Find all ${ITEMS.length} items` },
   { name: "Set Enjoyer", need: { sets: 1 }, how: "Wear a full set" },
   { name: "Mostly Finished", need: { kills: 1000 }, how: "Kill 1,000 slimes" },
+  { name: "Raid Regular", need: { boss: 25 }, how: "Really help kill 25 bosses" },
+  { name: "Unpaid Overtime", need: { ot: 10 }, how: "Reach overtime ★10 (keep playing past level 5)" },
+  { name: "Crunch Survivor", need: { ot: 50 }, how: "Reach overtime ★50" },
+  { name: "Regular", need: { days: 7 }, how: "Play on 7 different days" },
+  { name: "Shipped It", need: { ships: 5 }, how: "Help ship 5 patches" },
+  { name: "Actually Finished", need: { fin: 5 }, how: "Earn all 5 Finished items" },
 ];
 
 // The shop (after patch "shop"). Prices in Placeholder Coins. Rare stock rotates daily.
-export const PRICES = [15, 40, 120];
+export const PRICES = [15, 40, 200];
 export function shopStock(day) {
   const common = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r <= 1);
   const rares = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 2);
   const pick = (arr, n, seed) => { const a = arr.slice(), out = []; let x = seed; while (out.length < n && a.length) { x = (x * 1103515245 + 12345) % 2147483648; out.push(a.splice(x % a.length, 1)[0]); } return out; };
   return [...pick(common, 6, day * 7 + 1), ...pick(rares, 2, day * 13 + 5)];
 }
-export const WISH_COST = 10;
+export const WISH_COST = 25;
+export const QUESTS_PER_DAY = 5;
 
 // NPC_02's quests (after patch "quests"). k = what to count.
 export const QUESTS = [
