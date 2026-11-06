@@ -135,7 +135,7 @@
 <div id="bagp"><button class="close" id="bagx">Close</button><h2>Bag</h2><div class="sub" id="bagsub"></div><div class="grid" id="baggrid"></div></div>
 <div id="status">Connecting to the only server…</div>
 <script type="module">
-import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, QUESTS_PER_DAY, SCRAP, LUCKY_WISH, RAINBOW_OT, SPIN_CD, SECRETS, LAUNCH_CROWD, patchName, OT_REWARDS } from './items.js';
+import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, FINDABLE, SCRAP, RAINBOW_OT, SPIN_CD, SECRETS, LAUNCH_CROWD, patchName, OT_REWARDS } from './items.js';
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
@@ -392,7 +392,7 @@ function sendHi() { send({ t: 'hi', key: myKey || undefined, name: myName, hue: 
 function onMe(m) {
   gotMe = true;
   myName = m.name; store.set('ut_name', myName); myHue = m.hue; store.set('ut_hue', myHue); look = m.look; store.set('ut_look', JSON.stringify(look));
-  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest; seen = m.seen || []; qleft = m.qleft ?? QUESTS_PER_DAY;
+  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest; seen = m.seen || [];
   $('coins').textContent = coins.toLocaleString();
   if ($('bagp').classList.contains('open')) renderBag();
   if ($('mep').classList.contains('open')) renderMe();
@@ -437,7 +437,7 @@ function setInfo() { // how many pieces of each set you're wearing
 }
 function renderBag() {
   const found = stats.found || 0;
-  $('bagsub').textContent = giveTo != null ? `Tap an item to give one to ${nameOf(giveTo)}. Unfinished and Finished items are bound to you.` : `${found} of ${ITEMS.length} found yourself · ${coins.toLocaleString()} coins. Tap to wear. Stats: none, on everything.`;
+  $('bagsub').textContent = giveTo != null ? `Tap an item to give one to ${nameOf(giveTo)}. Unfinished and Finished items are bound to you.` : `${found} of ${FINDABLE} found yourself · ${coins.toLocaleString()} coins. Tap to wear. Stats: none, on everything.`;
   const g = $('baggrid'); g.innerHTML = '';
   const head = (t) => { const h = document.createElement('h3'); h.textContent = t; h.style.gridColumn = '1/-1'; h.style.margin = '8px 0 0'; g.append(h); };
   if (giveTo == null) {
@@ -662,7 +662,7 @@ const bodyColor = (hue, now) => hue >= 360 ? `hsl(${(now / 8) % 360} 75% 58%)` :
 function opt(label, on, click, extra) { const b = document.createElement('button'); b.className = 'opt' + (on ? ' on' : '') + (extra || ''); b.textContent = label; b.onclick = () => { sfx('click'); click(); }; return b; }
 const fmtKey = (k) => (k || '').replace(/(.{5})(?=.)/g, '$1-');
 function renderMe() {
-  $('mestats').textContent = `Lifetime: ${(stats.kills || 0).toLocaleString()} kills · ${stats.deaths || 0} deaths · best combo ×${stats.combo || 0} · ${stats.boss || 0} bosses · ${stats.days || 0} days played · ${stats.ships || 0} patches shipped · overtime ★${stats.ot || 0} · hidden spots ${stats.secrets || 0}/${SECRETS.length} · ${stats.found || 0}/${ITEMS.length} items · ${coins.toLocaleString()} coins`;
+  $('mestats').textContent = `Lifetime: ${(stats.kills || 0).toLocaleString()} kills · ${stats.deaths || 0} deaths · best combo ×${stats.combo || 0} · ${stats.boss || 0} bosses · ${stats.days || 0} days played · ${stats.ships || 0} patches shipped · overtime ★${stats.ot || 0} · hidden spots ${stats.secrets || 0}/${SECRETS.length} · ${stats.found || 0}/${FINDABLE} items found · ${coins.toLocaleString()} coins`;
   const col = $('mecol'); col.innerHTML = '';
   for (const h of HUES) { const b = document.createElement('button'); b.className = 'sw' + (myHue === h ? ' on' : ''); b.style.background = h >= 360 ? 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' : `hsl(${h} 70% 55%)`; const lockR = h >= 360 && (stats.ot || 0) < RAINBOW_OT; b.title = h >= 360 ? (lockR ? `Rainbow: unlocks at overtime ★${RAINBOW_OT}` : 'Rainbow (unstable)') : ''; if (lockR) { b.textContent = '🔒'; b.style.opacity = .6; } b.onclick = () => { sfx('click'); if (lockR) { toast('LOCKED', `Rainbow unlocks at overtime ★${RAINBOW_OT}. Keep playing past level 5.`); return; } myHue = h; saveMe(); }; col.append(b); }
   const rows = [['meshape', SHAPES, 0], ['meeyes', EYES, 1], ['memouth', MOUTHS, 2]];
@@ -673,7 +673,7 @@ function renderMe() {
   $('memus').textContent = musicOn ? '🎵 Music on' : '🎵 Music off';
   $('mekey').textContent = myKey ? fmtKey(myKey) : '(not made yet)';
   const q = myQuest && QUESTS[myQuest.i];
-  $('mequest').textContent = q ? `Quest from NPC_02: ${q.text} ${myQuest.have}/${q.n} (reward ${q.coins} coins)` : isUnlocked(patch, 'quests') ? (qleft > 0 ? `No quest. NPC_02 has ${qleft} left today.` : 'NPC_02 clocked out for today. Union rules.') : 'Quests arrive in a future patch.';
+  $('mequest').textContent = q ? `Quest from NPC_02: ${q.text} ${myQuest.have}/${q.n} (reward ${q.coins} coins)` : isUnlocked(patch, 'quests') ? 'No quest. Talk to NPC_02 by the plaza to get one.' : 'Quests arrive in a future patch.';
 }
 function openMe() { send({ t: 'me' }); $('mebtn').classList.remove('pulse'); $('mename').value = myName; renderMe(); $('mep').classList.add('open'); $('bagp').classList.remove('open'); $('shopp').classList.remove('open'); }
 $('mebtn').onclick = openMe;

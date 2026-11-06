@@ -180,7 +180,7 @@ export const LAUNCH = PATCHES.length;        // patch index of "1.0 Launch": nee
 export const LAUNCH_CROWD = 10;              // players who must really help beat the release boss, together
 export const patchName = (n) => n < LAUNCH ? "0.0." + (n + 1) : n === LAUNCH ? "1.0" : "1.0." + (n - LAUNCH);
 // No one person can fill a patch: each player's kills count for at most this share of the bar (1/5 early, 1/20 late).
-export const patchShare = (n) => 1 / Math.min(20, 5 + Math.floor(n * 15 / 11));
+export const patchShare = (n) => 1 / Math.min(10, 5 + Math.floor(n * 5 / 11)); // 5 helpers early, 10 late: never solo, still doable on a small server
 export const helpersNeeded = (n) => Math.round(1 / patchShare(n));
 export const BAR_MIN_KILLS = 20;             // an account's kills count toward the bar after its first 20 kills (stops instant throwaways)
 
@@ -189,6 +189,7 @@ export const SHAPES = ["Circle", "Default Cube", "Blob", "Low-poly"];
 export const EYES = ["Dots", "Sleepy", "Angry", "Googly", "Visor", "Placeholder X"];
 export const MOUTHS = ["None", "Smile", "Grumpy", "Open", "Mustache"];
 // Titles shown under your name. "need" is checked in your browser against your lifetime stats.
+export const FINDABLE = ITEMS.filter((it) => it.r < 4).length; // Finished items are earned by goals, not found
 export const TITLES = [
   { name: "Fresh Install", need: null },
   { name: "Slime Intern", need: { kills: 25 }, how: "Kill 25 slimes" },
@@ -200,7 +201,7 @@ export const TITLES = [
   { name: "Max Level (it's 5)", need: { lvl: 5 }, how: "Reach level 5" },
   { name: "Boss Puncher", need: { boss: 1 }, how: "Help kill MISSING_TEXTURE" },
   { name: "Collector", need: { found: 30 }, how: "Find 30 different items from drops" },
-  { name: "Completionist", need: { found: ITEMS.length }, how: `Find all ${ITEMS.length} items` },
+  { name: "Completionist", need: { found: FINDABLE }, how: `Find all ${FINDABLE} findable items yourself` },
   { name: "Set Enjoyer", need: { sets: 1 }, how: "Wear a full set" },
   { name: "Mostly Finished", need: { kills: 1000 }, how: "Kill 1,000 slimes" },
   { name: "Raid Regular", need: { boss: 25 }, how: "Really help kill 25 bosses" },

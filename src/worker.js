@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { ITEMS, RARITY, DROP_CHANCE, rollItem, PATCHES, patchGoal, patchName, unlocked, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SETS,
   PRICES, shopStock, WISH_COST, QUESTS, QUESTS_PER_DAY, EPIC_BOSSES, isBound, GIFT_MIN_KILLS, GIFTS_PER_DAY, GOALS, SHIP_KILLS, DAY_KILLS,
-  otNeed, SCRAP, LUCKY_WISH, RAINBOW_OT, SPIN_CD, HOTFIX_NOTES, SECRETS, LAUNCH, LAUNCH_CROWD, patchShare, helpersNeeded, BAR_MIN_KILLS, A2_DROP } from "../public/items.js";
+  otNeed, SCRAP, RAINBOW_OT, SPIN_CD, HOTFIX_NOTES, SECRETS, LAUNCH, LAUNCH_CROWD, patchShare, helpersNeeded, BAR_MIN_KILLS, A2_DROP } from "../public/items.js";
 import { isBad, cleanChat, isReserved } from "./filter.js";
 
 // One shared world for everyone. The browser connects to /ws; everything else is the static page.
@@ -282,7 +282,7 @@ export class World extends DurableObject {
     const today = Math.floor(Date.now() / DAY);
     this.tell(p, { t: "me", name: a.name, hue: a.hue, look: a.look, bag: a.bag, wear: a.wear, coins: a.coins, stats: this.statsOf(a), titles: a.tu,
       quest: a.quest, muted: a.mutedUntil > Date.now(), seen: a.seen,
-      qleft: 99, dayk: a.dk && a.dk.d === today ? a.dk.k : 0,
+      dayk: a.dk && a.dk.d === today ? a.dk.k : 0,
       shipk: this.patchBy[p.keyHash] || 0, share: Math.ceil(patchGoal(this.patch) * patchShare(this.patch)) });
   }
 
@@ -448,15 +448,14 @@ export class World extends DurableObject {
     this.grant(p, item, SHOP_AT, "shop");
   }
 
-  wish(p, lucky = false) {
+  wish(p) {
     if (!unlocked(this.patch, "fountain")) return;
     if (dist(p, FOUNTAIN_AT) > 150) return this.tell(p, { t: "err", text: "Walk over to the fountain first." });
-    const cost = lucky ? LUCKY_WISH : WISH_COST;
-    if (p.acct.coins < cost) return this.tell(p, { t: "err", text: `${lucky ? "A Lucky Wish" : "A wish"} costs ${cost} coins. You have ${p.acct.coins}.` });
+    const cost = WISH_COST;
+    if (p.acct.coins < cost) return this.tell(p, { t: "err", text: `A wish costs ${cost} coins. You have ${p.acct.coins}.` });
     p.acct.coins -= cost;
     this.events.push({ e: "wish", id: p.id });
-    const rares = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 2 && !ITEMS[i].a2);
-    this.grant(p, lucky ? rares[Math.floor(Math.random() * rares.length)] : rollItem(Math.random, false), FOUNTAIN_AT, "wish");
+    this.grant(p, rollItem(Math.random, false), FOUNTAIN_AT, "wish");
   }
 
   // recycle one spare copy of an item for coins (a coin sink for duplicates... well, a coin source. Sinks are on the roadmap.)
@@ -505,10 +504,12 @@ export class World extends DurableObject {
     const choices = QUESTS.map((q, i) => i).filter((i) => {
       const k = QUESTS[i].k;
       if ((k === "big" || k === "fast") && !unlocked(this.patch, "enemies")) return false;
-      if (k === "fence" && !unlocked(this.patch, "fence")) return false;
+      if (k === "fence" && (!unlocked(this.patch, "fence") || this.fence.openUntil > Date.now())) return false;
       return true;
     });
     a.quest = { i: choices[Math.floor(Math.random() * choices.length)], have: 0 }; p.dirty = true;
+    const NQ = QUESTS[a.quest.i];
+    this.tell(p, { t: "err", text: `New quest from NPC_02: ${NQ.text} (0/${NQ.n}, reward ${NQ.coins} coins). Progress is in 🎨 Me.` });
     this.sendMe(p);
   }
 
@@ -733,9 +734,10 @@ export class World extends DurableObject {
       let capped = null, credited = false;
       for (const pid of [...s.hitters].filter(earned).sort((x, y) => (s.dmgBy.get(y) || 0) - (s.dmgBy.get(x) || 0))) {
         const p = this.players.get(pid); if (!p || !p.acct || p.bot || (p.acct.stats.kills || 0) < BAR_MIN_KILLS) continue;
-        const c = this.patchBy[p.keyHash] || 0;
-        if (c >= share) { capped = capped || p; continue; }
-        this.patchBy[p.keyHash] = c + 1; this.patchKills++; credited = true;
+        const c = this.patchBy[p.keyHash] || 0, ipk = "ip:" + (p.ipTag || p.keyHash), ci = this.patchBy[ipk] || 0;
+        // one internet connection can fill at most 3 shares (a household is fine; ten tabs of throwaway accounts are not)
+        if (c >= share || ci >= share * 3) { capped = capped || p; continue; }
+        this.patchBy[p.keyHash] = c + 1; this.patchBy[ipk] = ci + 1; this.patchKills++; credited = true;
         if (!p.acct.pk || p.acct.pk.p !== this.patch) p.acct.pk = { p: this.patch, k: 0, need: Math.ceil(share / 2) };
         p.acct.pk.k++;
         break;
@@ -754,7 +756,7 @@ export class World extends DurableObject {
       this.events.push({ e: "sys", text: `Patch ${patchName(n)} shipped. ${note}` });
       for (const q of this.players.values()) this.creditShip(q);
     }
-    const boss = isBoss(s.kind), big = boss || s.kind === BUG;
+    const boss = isBoss(s.kind);
     const xp = kindOf(s.kind).xp;
     for (const pid of s.hitters) {
       const p = this.players.get(pid);
@@ -800,11 +802,12 @@ export class World extends DurableObject {
       for (let i = 0; i < 3; i++) { const c = this.spawnSlime(false, false, Math.floor(Math.random() * SLIME_NAMES.length), s); c.hp = c.max = 2; }
     }
     if (s.kind === BUG) {
-      this.events.push({ e: "sys", text: `THE BUG was squashed by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who really helped got Rare loot. Marked as fixed.` });
+      this.events.push({ e: "sys", text: `THE BUG was squashed by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who really helped got boss loot (a good shot at Rare). Marked as fixed.` });
       if (this.event && this.event.kind === "bug") this.event = null;
     } else if (s.kind === RELEASE) {
       const crowd = [...s.hitters].filter((pid) => { const q = this.players.get(pid); return q && q.acct && !q.bot && earned(pid); });
-      if (crowd.length >= LAUNCH_CROWD && this.patch === LAUNCH) {
+      const places = new Set(crowd.map((pid) => this.players.get(pid).ipTag || pid)).size;
+      if (crowd.length >= LAUNCH_CROWD && places >= 4 && this.patch === LAUNCH) {
         this.patch++; this.patchKills = 0; this.patchBy = {}; this.dirty = true;
         this.events.push({ e: "patch", n: this.patch, name: "1.0", note: "VERSION 1.0 IS OUT. The game is finished. (It is not. But it shipped.)", launch: true });
         this.events.push({ e: "sys", text: `${crowd.length} people beat RELEASE_CANDIDATE_1.0 together. VERSION 1.0 HAS SHIPPED. Everyone who helped is now a Day One player.` });
@@ -812,12 +815,12 @@ export class World extends DurableObject {
         for (const q of this.players.values()) this.creditShip(q);
       } else {
         this.releaseAt = Date.now() + 600000;
-        this.events.push({ e: "sys", text: `RELEASE_CANDIDATE_1.0 went down, but only ${crowd.length} of ${LAUNCH_CROWD} people really helped. Launch delayed. It comes back in 10 minutes. Bring more people.` });
+        this.events.push({ e: "sys", text: `RELEASE_CANDIDATE_1.0 went down, but only ${crowd.length} of ${LAUNCH_CROWD} people really helped${crowd.length >= LAUNCH_CROWD ? " (from too few different places)" : ""}. Launch delayed. It comes back in 10 minutes. Bring more people.` });
       }
     } else if (s.kind === BOSS2) {
-      this.events.push({ e: "sys", text: `FINAL_BOSS_v0.1 defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. The real final boss is in the sequel. Everyone who really helped got Rare loot or better.` });
+      this.events.push({ e: "sys", text: `FINAL_BOSS_v0.1 defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. The real final boss is in the sequel. Everyone who really helped got boss loot (a good shot at Rare).` });
     } else if (boss) {
-      this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who really helped got Rare loot or better. Some of it isn't finished.` });
+      this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who really helped got boss loot (a good shot at Rare). Some of it isn't finished.` });
     } else if (this.total % 100 === 0) {
       this.events.push({ e: "sys", text: `Everyone together has now killed ${this.total} slimes. New areas added by the devs: 0.` });
     }
@@ -850,7 +853,7 @@ export class World extends DurableObject {
       this.event = { kind: "bug", until: now + 90000 };
       this.spawnSlime(false, false, BUG);
       this.events.push({ e: "event", kind: "bug", ms: 90000 });
-      this.events.push({ e: "sys", text: "WORLD EVENT: Bug Bounty! THE BUG is loose. Everyone who hits it before it escapes gets Rare loot." });
+      this.events.push({ e: "sys", text: "WORLD EVENT: Bug Bounty! THE BUG is loose. Everyone who really hits it before it escapes gets boss loot." });
     }
   }
 
@@ -920,7 +923,7 @@ export class World extends DurableObject {
     }
     for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind]);
     const ev = this.event ? [this.event.kind, Math.ceil((this.event.until - Date.now()) / 1000)] : null;
-    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch), Object.keys(this.patchBy).length, helpersNeeded(this.patch)], ev,
+    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch), Object.keys(this.patchBy).filter((k) => !k.startsWith("ip:")).length, helpersNeeded(this.patch)], ev,
       fz: [this.fence.hp, this.fence.max, this.fence.openUntil ? Math.ceil((this.fence.openUntil - Date.now()) / 1000) : 0] });
     this.events = [];
     for (const q of [...this.players.values()]) {
