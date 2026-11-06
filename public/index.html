@@ -34,6 +34,7 @@
   #toast { position:fixed; left:50%; top:30%; transform:translate(-50%,-50%); text-align:center; font-weight:800; font-size:22px; text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.6); pointer-events:none; opacity:0; transition:opacity .3s; width:min(90%,520px); }
   #toast small { display:block; font-size:15px; font-weight:600; margin-top:6px; }
   #bag { position:relative; }
+  #mebtn.pulse { animation:pulse 1s infinite; } @keyframes pulse { 50% { background:#ffd34d; } }
   #bag .dot { position:absolute; top:6px; right:6px; width:10px; height:10px; border-radius:50%; background:#ff5c5c; display:none; }
   #bag.new .dot { display:block; }
   #bagp { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(94vw,520px); max-height:82vh; overflow:auto; background:var(--paper); color:var(--ink); border-radius:16px; padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.5); display:none; }
@@ -48,6 +49,24 @@
   #bagp .it b { display:block; font-size:12px; }
   #bagp .it i { display:block; font-style:normal; font-size:11px; opacity:.7; }
   #bagp .close { position:sticky; top:0; float:right; height:36px; padding:0 12px; }
+  #combo { position:fixed; right:12px; top:34%; text-align:right; pointer-events:none; font-weight:900; text-shadow:0 3px 0 #000, 0 0 14px rgba(0,0,0,.5); opacity:0; transition:opacity .25s; }
+  #combo b { display:block; font-size:clamp(30px,10vw,44px); line-height:1.1; color:#ffd34d; transform-origin:right center; padding-right:4px; }
+  #combo small { display:block; font-size:13px; font-weight:700; color:#fff; max-width:150px; margin-left:auto; }
+  #mep { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(94vw,520px); max-height:86vh; overflow:auto; background:var(--paper); color:var(--ink); border-radius:16px; padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.5); display:none; }
+  #mep.open { display:block; }
+  #mep h2 { margin:0 0 6px; font-size:18px; }
+  #mep h3 { margin:12px 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.05em; opacity:.65; }
+  #mep .top { display:flex; gap:12px; align-items:center; }
+  #mep canvas { position:static; width:120px; height:120px; flex:none; background:#55a24f; border-radius:12px; }
+  #mep input { width:100%; height:42px; border-radius:10px; border:2px solid #e3dcc4; padding:0 10px; font:inherit; font-size:16px; }
+  #mep .row { display:flex; flex-wrap:wrap; gap:6px; }
+  #mep .opt { height:34px; padding:0 10px; font-size:13px; border-radius:10px; background:#fff; border:2px solid #e3dcc4; box-shadow:none; }
+  #mep .opt.on { border-color:#1b1f17; background:#fff6c9; }
+  #mep .opt.locked { opacity:.45; }
+  #mep .sw { width:34px; height:34px; padding:0; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 2px #e3dcc4; }
+  #mep .sw.on { box-shadow:0 0 0 3px #1b1f17; }
+  #mep .stats { font-size:13px; opacity:.75; margin-top:4px; }
+  #mep .close { position:sticky; top:0; float:right; height:36px; padding:0 12px; }
   #status { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(20,26,18,.85); font-size:18px; text-align:center; padding:20px; }
   #status.hide { display:none; }
 </style>
@@ -66,13 +85,24 @@
   <button id="say">💬 Chat</button>
   <div id="chatbox"><input id="msg" maxlength="80" placeholder="Say something" enterkeyhint="send" autocomplete="off"><button id="send">Send</button></div>
   <button id="bag">🎒 Bag<span class="dot"></span></button>
+  <button id="mebtn">🎨 Me</button>
   <button id="invite" style="margin-left:auto">Invite</button>
 </div>
 <div id="toast"></div>
+<div id="combo"><b></b><small></small></div>
+<div id="mep"><button class="close" id="mex">Done</button><h2>Character maker</h2>
+  <div class="top"><canvas id="prev" width="240" height="240"></canvas><div style="flex:1;min-width:0"><input id="mename" maxlength="16" placeholder="Your name" autocomplete="off"><div class="stats" id="mestats"></div></div></div>
+  <h3>Color</h3><div class="row" id="mecol"></div>
+  <h3>Body</h3><div class="row" id="meshape"></div>
+  <h3>Eyes</h3><div class="row" id="meeyes"></div>
+  <h3>Mouth</h3><div class="row" id="memouth"></div>
+  <h3>Title</h3><div class="row" id="metitle"></div>
+  <h3>Other</h3><div class="row"><button class="opt" id="merand">🎲 Randomize</button><button class="opt" id="mesnd"></button></div>
+</div>
 <div id="bagp"><button class="close" id="bagx">Close</button><h2>Bag</h2><div class="sub" id="bagsub"></div><div class="grid" id="baggrid"></div></div>
 <div id="status">Connecting to the only server…</div>
 <script type="module">
-import { ITEMS, RARITY, PATCHES } from './items.js';
+import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES } from './items.js';
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
@@ -95,6 +125,8 @@ const GUY_LINES = [
   "That fence to Area 2 has HP. I'm not supposed to tell you that.",
   "Slimes drop loot now. The devs called it a content update.",
   "Tap Bag to wear your loot. Every item has the same stats: none.",
+  "Keep hitting without stopping for a combo. Every 5th hit is a crit. That part works.",
+  "Tap Me to make your character. The character creator was the one thing they finished.",
 ];
 const SIGNS = [
   { x: 960, y: 600, title: "SHOP", text: "Closed for launch." },
@@ -130,20 +162,20 @@ if (!myName) { const a = ["Beta", "Unpaid", "Early", "Patch", "Lag", "Alpha", "L
 function connect() {
   $('status').classList.remove('hide'); $('status').textContent = 'Connecting to the only server…';
   ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-  ws.onopen = () => { ws.send(JSON.stringify({ t: 'hi', name: myName, hue: myHue })); sendWear(); };
+  ws.onopen = () => { sendHi(); sendWear(); };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.t === 'you') { myId = m.id; W = m.w; H = m.h; total = m.total; $('status').classList.add('hide'); }
     else if (m.t === 'full') { $('status').textContent = 'The server is full. An MMO with a queue. Very authentic. Try again soon.'; }
     else if (m.t === 's') onSnap(m);
-    else if (m.t === 'loot') onLoot(m.item);
+    else if (m.t === 'loot') onLoot(m.item, m.x, m.y);
   };
   ws.onclose = () => { myId = null; $('status').classList.remove('hide'); $('status').textContent = 'Lost the server. Reconnecting…'; setTimeout(connect, 2000); };
 }
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
 function toMap(arr, keys) { const out = new Map(); for (const a of arr) { const o = {}; keys.forEach((k, i) => o[k] = a[i]); out.set(o.id, o); } return out; }
-const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills', 'hat', 'hand'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind'];
+const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills', 'hat', 'hand', 'look'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind'];
 function onSnap(m) {
   snapA = snapB || { p: new Map(), m: new Map() };
   snapB = { p: toMap(m.p, PK), m: toMap(m.m, MK) };
@@ -167,24 +199,40 @@ function onEvent(e) {
   if (e.e === 'sys') log(e.text, true);
   else if (e.e === 'say') { bubbles.set(e.id, { text: e.text, until: now + 6000 }); log(null, false, nameOf(e.id), e.text); }
   else if (e.e === 'hit') {
-    swings.set(e.by, now);
-    const s = snapB.m.get(e.id) || (snapA && snapA.m.get(e.id));
-    if (s) fx.push({ x: s.x + (Math.random() - .5) * 16, y: s.y - 20, text: '-' + e.dmg, c: e.by === myId ? '#fff' : '#ffe08a', t: now, life: 700 });
+    swings.set(e.by, now); slimeHit.set(e.id, now);
+    const s = snapB.m.get(e.id) || (snapA && snapA.m.get(e.id)), mine = e.by === myId;
+    if (s) {
+      fx.push({ x: s.x + (Math.random() - .5) * 18, y: s.y - 22, text: (e.crit ? 'CRIT ' : '') + '-' + e.dmg, c: e.crit ? '#ff9a3d' : mine ? '#fff' : '#ffe08a', t: now, life: e.crit ? 900 : 700, big: e.crit ? 1.6 : mine ? 1.15 : 0.9 });
+      const n = e.crit ? 10 : 5; for (let i = 0; i < n; i++) fx.push({ x: s.x, y: s.y, vx: (Math.random() - .5) * 220, vy: (Math.random() - .8) * 200, dot: true, sz: 3 + Math.random() * 3, c: s.kind === BOSS ? (i % 2 ? '#ff00dc' : '#111') : s.kind === TODO ? '#c8ccd2' : '#7be36a', t: now, life: 450 });
+    }
+    if (mine) { onMyHit(e); shake(e.crit ? 6 : 2.5); sfx(e.crit ? 'crit' : 'hit', e.combo); }
+    else if (s && near(s)) sfx('hit', 0, 0.25);
   }
-  else if (e.e === 'ow') { hurt.set(e.id, now); const p = snapB.p.get(e.id); if (p) fx.push({ x: p.x, y: p.y - 30, text: '-' + e.dmg, c: '#ff6b6b', t: now, life: 800 }); }
+  else if (e.e === 'ow') { hurt.set(e.id, now); const p = snapB.p.get(e.id); if (p) fx.push({ x: p.x, y: p.y - 30, text: '-' + e.dmg, c: '#ff6b6b', t: now, life: 800, big: 1.2 }); if (e.id === myId) { shake(7); sfx('ow'); redFlash = now; } }
   else if (e.e === 'kill') {
-    for (let i = 0; i < (e.boss ? 40 : 12); i++) fx.push({ x: e.x, y: e.y, vx: (Math.random() - .5) * 260, vy: (Math.random() - .7) * 260, dot: true, c: e.boss ? (i % 2 ? '#ff00dc' : '#111') : '#7be36a', t: now, life: 650 });
-    if (e.helpers > 1 && !e.boss) fx.push({ x: e.x, y: e.y - 34, text: `teamwork ×${e.helpers}`, c: '#ffd34d', t: now, life: 1100 });
+    const mine = e.by && e.by.includes(myId);
+    for (let i = 0; i < (e.boss ? 60 : 18); i++) fx.push({ x: e.x, y: e.y, vx: (Math.random() - .5) * (e.boss ? 520 : 320), vy: (Math.random() - .75) * (e.boss ? 480 : 320), dot: true, sz: 4 + Math.random() * 5, c: e.boss ? (i % 2 ? '#ff00dc' : '#111') : ['#7be36a', '#b6ff9e', '#4fbf45'][i % 3], t: now, life: 750 });
+    fx.push({ x: e.x, y: e.y, ring: true, r: e.boss ? 120 : 46, c: e.boss ? '#ff7bf0' : '#e8ffe0', t: now, life: e.boss ? 600 : 350 });
+    if (e.helpers > 1 && !e.boss) fx.push({ x: e.x, y: e.y - 40, text: `teamwork ×${e.helpers}`, c: '#ffd34d', t: now, life: 1100 });
+    if (mine) { fx.push({ x: e.x, y: e.y - 20, text: e.boss ? '+6 XP' : '+1 XP', c: '#ffd34d', t: now + 120, life: 900, big: 0.9 }); shake(e.boss ? 14 : 4); sfx(e.boss ? 'boss' : 'kill'); stat('kills', 1); if (e.boss) stat('boss', 1); }
+    else if (near(e)) sfx('kill', 0, 0.3);
   }
-  else if (e.e === 'lvl' && e.id === myId) toast(e.cap ? 'LEVEL 5 (MAX)' : 'LEVEL ' + e.lvl + '!', e.cap ? "That's every level they made." : ['Nothing new unlocked. The skill tree is a picture.', '+2 max HP. That was the whole budget.', 'Your armor is the same. It was always a texture.'][(e.lvl - 2) % 3]);
+  else if (e.e === 'lvl' && e.id === myId) { sfx('lvl'); stat('lvl', 0, e.lvl); for (let i = 0; i < 30; i++) { const me = snapB.p.get(myId); if (me) fx.push({ x: me.x, y: me.y, vx: Math.cos(i / 30 * 6.28) * 200, vy: Math.sin(i / 30 * 6.28) * 200 - 80, dot: true, sz: 5, c: '#ffd34d', t: now, life: 800 }); } }
+  if (e.e === 'lvl' && e.id === myId) toast(e.cap ? 'LEVEL 5 (MAX)' : 'LEVEL ' + e.lvl + '!', e.cap ? "That's every level they made." : ['Nothing new unlocked. The skill tree is a picture.', '+2 max HP. That was the whole budget.', 'Your armor is the same. It was always a texture.'][(e.lvl - 2) % 3]);
   else if (e.e === 'lvl') log(`${nameOf(e.id)} reached level ${e.lvl}.`, true);
-  else if (e.e === 'fhit') { swings.set(e.by, now); fenceShake = now; fx.push({ x: FENCE_X + (Math.random() - .5) * 16, y: e.y - 24, text: '-' + e.dmg, c: e.by === myId ? '#fff' : '#ffe08a', t: now, life: 700 }); }
+  else if (e.e === 'fhit') {
+    swings.set(e.by, now); fenceShake = now; const mine = e.by === myId;
+    fx.push({ x: FENCE_X + (Math.random() - .5) * 16, y: e.y - 24, text: (e.crit ? 'CRIT ' : '') + '-' + e.dmg, c: e.crit ? '#ff9a3d' : mine ? '#fff' : '#ffe08a', t: now, life: 700, big: e.crit ? 1.5 : 1 });
+    for (let i = 0; i < 4; i++) fx.push({ x: FENCE_X, y: e.y, vx: (Math.random() - .6) * 200, vy: (Math.random() - .8) * 180, dot: true, sz: 3 + Math.random() * 3, c: '#d9c39b', t: now, life: 500 });
+    if (mine) { onMyHit(e); shake(e.crit ? 5 : 2); sfx('fence', e.combo); stat('fence', 1); }
+  }
   else if (e.e === 'area2') {
+    shake(e.open ? 10 : 5); sfx('fanfare');
     if (e.open) { toast('THE FENCE IS DOWN', 'AREA 2 is open for 3 minutes. Go! There is almost nothing there.'); for (let i = 0; i < 60; i++) fx.push({ x: FENCE_X, y: 60 + Math.random() * (H - 120), vx: (Math.random() - .3) * 300, vy: (Math.random() - .7) * 200, dot: true, c: '#d9c39b', t: now, life: 900 }); }
     else toast('FENCE REBUILT', 'The devs noticed. Everyone in Area 2 was sent back.');
   }
-  else if (e.e === 'patch') toast('PATCH ' + e.name + ' SHIPPED', e.note);
-  else if (e.e === 'die' && e.id === myId) toast('YOU DIED', 'Respawning at the only spawn point.');
+  else if (e.e === 'patch') { toast('PATCH ' + e.name + ' SHIPPED', e.note); sfx('fanfare'); }
+  else if (e.e === 'die' && e.id === myId) { toast('YOU DIED', 'Respawning at the only spawn point.'); sfx('die'); shake(10); stat('deaths', 1); }
 }
 function log(text, sys, who, said) {
   const d = document.createElement('div');
@@ -205,7 +253,7 @@ try { wear = Object.assign(wear, JSON.parse(store.get('ut_wear') || '{}')); } ca
 for (const k of ['hat', 'hand']) if (wear[k] && !(bag[wear[k]] > 0)) wear[k] = null;
 function saveBag() { store.set('ut_bag', JSON.stringify(bag)); store.set('ut_wear', JSON.stringify(wear)); }
 function sendWear() { send({ t: 'wear', hat: wear.hat ? idx(wear.hat) : -1, hand: wear.hand ? idx(wear.hand) : -1 }); }
-function onLoot(i) {
+function onLoot(i, lx, ly) {
   const it = ITEMS[i]; if (!it) return;
   const n = bag[it.id] = (bag[it.id] || 0) + 1;
   const cur = wear[it.slot] ? ITEMS[idx(wear[it.slot])] : null;
@@ -214,8 +262,15 @@ function onLoot(i) {
   saveBag(); if (auto) sendWear();
   const rar = RARITY[it.r];
   toast('LOOT: ' + it.name, n > 1 ? `Another one. You have ${n}. Stats: none.` : `${rar.name}. ${it.text}` + (auto ? ' (Wearing it.)' : ''));
-  const me = snapB && snapB.p.get(myId);
-  if (me) fx.push({ x: me.x, y: me.y - 46, text: it.name, c: rar.color, t: performance.now(), life: 1600 });
+  const me = snapB && snapB.p.get(myId), now = performance.now();
+  if (me) {
+    // the item pops out of the slime and lands on you
+    fx.push({ item: i, x: lx ?? me.x, y: ly ?? me.y, tx: me.x, ty: me.y - 40, t: now, life: 750 });
+    fx.push({ x: me.x, y: me.y - 56, text: it.name, c: rar.color, t: now + 650, life: 1700, big: it.r >= 2 ? 1.3 : 1 });
+    setTimeout(() => { const m2 = snapB && snapB.p.get(myId); if (!m2) return; for (let k = 0; k < 10 + it.r * 10; k++) fx.push({ x: m2.x, y: m2.y - 40, vx: (Math.random() - .5) * 240, vy: (Math.random() - .9) * 240, dot: true, sz: 3 + Math.random() * 3, c: rar.color, t: performance.now(), life: 700 }); if (it.r >= 2) shake(6); }, 700);
+  }
+  sfx('loot', it.r);
+  stat('found', 0, Object.keys(bag).filter((k) => bag[k] > 0).length);
   if (n === 1) $('bag').classList.add('new');
   if ($('bagp').classList.contains('open')) renderBag();
 }
@@ -274,6 +329,135 @@ function drawHand(g, i) {
   g.restore();
 }
 
+// ---------- juice: screen shake, sound, combos ----------
+let shakeAmt = 0, redFlash = 0, comboN = 0, comboAt = 0;
+const slimeHit = new Map();
+function shake(a) { shakeAmt = Math.min(18, Math.max(shakeAmt, a)); }
+function near(o) { const me = snapB && snapB.p.get(myId); return me && Math.hypot(me.x - o.x, me.y - o.y) < 500; }
+let actx = null, muted = store.get('ut_mute') === '1';
+function audio() { if (muted) return null; if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } } if (actx.state === 'suspended') actx.resume(); return actx; }
+addEventListener('pointerdown', () => audio(), { once: true });
+function tone(a, type, f0, f1, dur, vol, at = 0) {
+  const t = a.currentTime + at, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(a, dur, vol, at = 0, hp = 800) {
+  const t = a.currentTime + at, len = Math.floor(a.sampleRate * dur), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = a.createBufferSource(), g = a.createGain(), fl = a.createBiquadFilter(); fl.type = 'highpass'; fl.frequency.value = hp;
+  src.buffer = buf; g.gain.value = vol; src.connect(fl).connect(g).connect(a.destination); src.start(t);
+}
+const NOTES = [523, 587, 659, 784, 880, 1047, 1175, 1319];
+function sfx(name, n = 0, v = 1) {
+  const a = audio(); if (!a) return;
+  if (name === 'hit') { const f = 180 * Math.pow(1.06, Math.min(n || 0, 24)); tone(a, 'square', f * 1.6, f, 0.07, 0.08 * v); noise(a, 0.05, 0.12 * v, 0, 1500); }
+  else if (name === 'crit') { const f = 220 * Math.pow(1.06, Math.min(n || 0, 24)); tone(a, 'square', f * 2.4, f, 0.12, 0.1 * v); tone(a, 'triangle', f * 4, f * 3, 0.15, 0.08 * v, 0.02); noise(a, 0.09, 0.2 * v, 0, 900); }
+  else if (name === 'fence') { tone(a, 'triangle', 140, 70, 0.12, 0.18 * v); noise(a, 0.08, 0.16 * v, 0, 300); }
+  else if (name === 'kill') { tone(a, 'sine', 700, 120, 0.16, 0.2 * v); noise(a, 0.07, 0.12 * v, 0, 2500); tone(a, 'triangle', 1320, 1320, 0.08, 0.06 * v, 0.06); }
+  else if (name === 'boss') { tone(a, 'sawtooth', 300, 40, 0.6, 0.18); noise(a, 0.5, 0.25, 0, 200); [0, 1, 2, 3, 5].forEach((k, i) => tone(a, 'triangle', NOTES[k], NOTES[k], 0.14, 0.09, 0.25 + i * 0.08)); }
+  else if (name === 'ow') { tone(a, 'sawtooth', 160, 60, 0.15, 0.12); }
+  else if (name === 'die') { [3, 2, 1, 0].forEach((k, i) => tone(a, 'square', NOTES[k] / 2, NOTES[k] / 2, 0.14, 0.06, i * 0.13)); }
+  else if (name === 'loot') { const seq = [[0, 2, 4], [0, 2, 4, 5], [0, 2, 4, 5, 7], [7, 5, 4, 2, 0, 7]][n] || [0, 2, 4]; seq.forEach((k, i) => tone(a, 'triangle', NOTES[k] * 2, NOTES[k] * 2, 0.12, 0.08, i * 0.06)); }
+  else if (name === 'lvl' || name === 'fanfare' || name === 'title') { [0, 2, 4, 7].forEach((k, i) => { tone(a, 'square', NOTES[k], NOTES[k], 0.16, 0.05, i * 0.1); tone(a, 'triangle', NOTES[k] / 2, NOTES[k] / 2, 0.2, 0.06, i * 0.1); }); }
+  else if (name === 'click') { tone(a, 'triangle', 900, 700, 0.04, 0.05); }
+}
+const COMBO_WORDS = [[5, 'Nice.'], [10, 'Unbalanced.'], [15, 'The devs did not plan for this.'], [20, 'Please stop, the server is crying.'], [30, 'Not tested past here.'], [50, 'You found the real endgame.']];
+function onMyHit(e) {
+  const now = performance.now();
+  comboN = e.combo || 1; comboAt = now;
+  stat('combo', 0, comboN);
+  const el = $('combo');
+  if (comboN >= 3) {
+    el.firstChild.textContent = '×' + comboN; let w = ''; for (const [n, t] of COMBO_WORDS) if (comboN >= n) w = t; el.lastChild.textContent = w || 'COMBO';
+    el.style.opacity = 1; el.firstChild.animate([{ transform: 'scale(1.5)' }, { transform: 'scale(1)' }], { duration: 160 });
+  }
+}
+
+// ---------- you: character maker and lifetime stats (kept in this browser) ----------
+let look = [0, 0, 0, 0];
+try { const l = JSON.parse(store.get('ut_look') || 'null'); if (Array.isArray(l)) look = [0, 1, 2, 3].map((i) => Number.isInteger(l[i]) ? l[i] : 0); } catch {}
+let stats = { kills: 0, deaths: 0, fence: 0, combo: 0, found: 0, lvl: 1, boss: 0 };
+try { stats = Object.assign(stats, JSON.parse(store.get('ut_stats') || '{}')); } catch {}
+stats.found = Math.max(stats.found, Object.keys(bag).filter((k) => bag[k] > 0).length);
+let unlocked = new Set(); try { unlocked = new Set(JSON.parse(store.get('ut_titles') || '[0]')); } catch {} unlocked.add(0);
+const hasTitle = (i) => { const n = TITLES[i].need; return !n || Object.entries(n).every(([k, v]) => (stats[k] || 0) >= v); };
+for (let i = 0; i < TITLES.length; i++) if (hasTitle(i)) unlocked.add(i);
+if (!unlocked.has(look[3])) look[3] = 0;
+function stat(k, add, max) {
+  if (max != null) stats[k] = Math.max(stats[k] || 0, max); else stats[k] = (stats[k] || 0) + add;
+  store.set('ut_stats', JSON.stringify(stats));
+  for (let i = 0; i < TITLES.length; i++) if (!unlocked.has(i) && hasTitle(i)) {
+    unlocked.add(i); store.set('ut_titles', JSON.stringify([...unlocked]));
+    setTimeout(() => { toast('TITLE UNLOCKED: ' + TITLES[i].name, 'Tap 🎨 Me to wear it under your name.'); sfx('title'); $('mebtn').classList.add('pulse'); }, 900);
+  }
+}
+function sendHi() { send({ t: 'hi', name: myName, hue: myHue, look }); }
+function saveMe() { store.set('ut_look', JSON.stringify(look)); store.set('ut_hue', myHue); sendHi(); renderMe(); }
+const HUES = [0, 25, 45, 90, 140, 175, 200, 225, 260, 290, 320, 360];
+const bodyColor = (hue, now) => hue >= 360 ? `hsl(${(now / 8) % 360} 75% 58%)` : `hsl(${hue} 70% 55%)`;
+function opt(label, on, click, extra) { const b = document.createElement('button'); b.className = 'opt' + (on ? ' on' : '') + (extra || ''); b.textContent = label; b.onclick = () => { sfx('click'); click(); }; return b; }
+function renderMe() {
+  $('mestats').textContent = `Lifetime: ${stats.kills.toLocaleString()} kills · ${stats.deaths} deaths · best combo ×${stats.combo} · ${stats.found}/${ITEMS.length} items`;
+  const col = $('mecol'); col.innerHTML = '';
+  for (const h of HUES) { const b = document.createElement('button'); b.className = 'sw' + (myHue === h ? ' on' : ''); b.style.background = h >= 360 ? 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' : `hsl(${h} 70% 55%)`; b.title = h >= 360 ? 'Rainbow (unstable)' : ''; b.onclick = () => { sfx('click'); myHue = h; saveMe(); }; col.append(b); }
+  const rows = [['meshape', SHAPES, 0], ['meeyes', EYES, 1], ['memouth', MOUTHS, 2]];
+  for (const [id, list, k] of rows) { const r = $(id); r.innerHTML = ''; list.forEach((nm, i) => r.append(opt(nm, look[k] === i, () => { look[k] = i; saveMe(); }))); }
+  const tr = $('metitle'); tr.innerHTML = '';
+  TITLES.forEach((t, i) => { const got = unlocked.has(i); tr.append(opt(got ? t.name : '🔒 ' + t.how, look[3] === i, () => { if (!got) { toast('LOCKED', t.how + ' to unlock it.'); return; } look[3] = i; saveMe(); }, got ? '' : ' locked')); });
+  $('mesnd').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
+}
+function openMe() { $('mebtn').classList.remove('pulse'); $('mename').value = myName; renderMe(); $('mep').classList.add('open'); $('bagp').classList.remove('open'); }
+$('mebtn').onclick = openMe;
+$('mex').onclick = () => { const n = $('mename').value.trim(); if (n.length >= 2 && n !== myName) { myName = n.slice(0, 16); store.set('ut_name', myName); sendHi(); } $('mep').classList.remove('open'); };
+$('mename').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('mex').click(); });
+$('merand').onclick = () => { sfx('click'); myHue = HUES[Math.floor(Math.random() * HUES.length)]; look = [Math.floor(Math.random() * SHAPES.length), Math.floor(Math.random() * EYES.length), Math.floor(Math.random() * MOUTHS.length), look[3]]; saveMe(); };
+$('mesnd').onclick = () => { muted = !muted; store.set('ut_mute', muted ? '1' : '0'); if (!muted) sfx('click'); renderMe(); };
+$('bag').addEventListener('click', () => $('mep').classList.remove('open'));
+(function previewLoop() {
+  if ($('mep').classList.contains('open')) {
+    const g = $('prev').getContext('2d'), now = performance.now();
+    g.setTransform(2, 0, 0, 2, 0, 0); g.clearRect(0, 0, 120, 120); g.lineJoin = 'round';
+    g.translate(60, 70); g.scale(2.4, 2.4);
+    const w = wear.hand ? idx(wear.hand) : -1, h = wear.hat ? idx(wear.hat) : -1;
+    g.save(); g.translate(10, -2); g.rotate(-0.6 + Math.max(0, Math.sin(now / 300)) * 0.6); drawHand(g, w); g.restore();
+    drawBody(g, { hue: myHue, look, dead: 0 }, true, false, now);
+    if (h >= 0) drawHat(g, h, now);
+  }
+  requestAnimationFrame(previewLoop);
+})();
+
+// the body: shape, color, eyes and mouth from the character maker
+function drawBody(g, p, isMe, flash, now) {
+  const L = p.look || [0, 0, 0, 0];
+  g.fillStyle = flash ? '#fff' : bodyColor(p.hue, now); g.strokeStyle = '#1b1f17'; g.lineWidth = isMe ? 3 : 2;
+  g.beginPath();
+  if (L[0] === 1) g.roundRect(-13, -13, 26, 26, 3);
+  else if (L[0] === 2) { const w = Math.sin(now / 220 + (p.id || 0)) * 1.6; g.ellipse(0, w / 2, 15 + w, 13 - w, 0, 0, 7); }
+  else if (L[0] === 3) { for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 - Math.PI / 2; g[i ? 'lineTo' : 'moveTo'](Math.cos(a) * 15, Math.sin(a) * 15); } g.closePath(); }
+  else g.arc(0, 0, 14, 0, 7);
+  g.fill(); g.stroke();
+  if (L[0] === 1) { g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1; g.beginPath(); g.moveTo(-13, -13); g.lineTo(-8, -17); g.lineTo(17, -17); g.lineTo(13, -13); g.moveTo(17, -17); g.lineTo(17, 8); g.lineTo(13, 13); g.stroke(); }
+  g.fillStyle = '#1b1f17'; g.strokeStyle = '#1b1f17'; g.lineWidth = 2;
+  if (p.dead) { g.beginPath(); g.moveTo(-8, -6); g.lineTo(-3, -1); g.moveTo(-3, -6); g.lineTo(-8, -1); g.moveTo(3, -6); g.lineTo(8, -1); g.moveTo(8, -6); g.lineTo(3, -1); g.stroke(); }
+  else switch (L[1]) {
+    case 1: g.beginPath(); g.moveTo(-8, -3); g.lineTo(-2, -3); g.moveTo(2, -3); g.lineTo(8, -3); g.stroke(); break;
+    case 2: g.beginPath(); g.arc(-5, -2, 2.2, 0, 7); g.arc(5, -2, 2.2, 0, 7); g.fill(); g.beginPath(); g.moveTo(-9, -8); g.lineTo(-2, -5); g.moveTo(9, -8); g.lineTo(2, -5); g.stroke(); break;
+    case 3: { const t = now / 400 + (p.id || 0); g.fillStyle = '#fff'; g.lineWidth = 1.2; g.beginPath(); g.arc(-5, -4, 4.5, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.arc(5, -4, 4.5, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#1b1f17'; g.beginPath(); g.arc(-5 + Math.cos(t) * 2, -4 + Math.sin(t * 1.3) * 2, 2, 0, 7); g.arc(5 + Math.cos(t + 2) * 2, -4 + Math.sin(t * 0.9) * 2, 2, 0, 7); g.fill(); break; }
+    case 4: g.fillStyle = '#1b1f17'; g.beginPath(); g.roundRect(-10, -7, 20, 7, 3); g.fill(); g.fillStyle = '#5ff2ff'; g.fillRect(-7, -5, 5, 2); break;
+    case 5: for (const x of [-7, 3]) { g.fillStyle = '#ff00dc'; g.fillRect(x, -6, 4, 4); g.fillStyle = '#111'; g.fillRect(x, -6, 2, 2); g.fillRect(x + 2, -4, 2, 2); } break;
+    default: g.beginPath(); g.arc(-5, -3, 2.2, 0, 7); g.arc(5, -3, 2.2, 0, 7); g.fill();
+  }
+  g.lineWidth = 1.6; g.strokeStyle = '#1b1f17';
+  switch (L[2]) {
+    case 1: g.beginPath(); g.arc(0, 2, 5, 0.2, Math.PI - 0.2); g.stroke(); break;
+    case 2: g.beginPath(); g.arc(0, 9, 5, Math.PI + 0.4, -0.4); g.stroke(); break;
+    case 3: g.fillStyle = '#5a1a1a'; g.beginPath(); g.ellipse(0, 5, 3, 3.5, 0, 0, 7); g.fill(); break;
+    case 4: g.fillStyle = '#3b2412'; g.beginPath(); g.ellipse(-4, 4, 4.5, 2, 0.3, 0, 7); g.ellipse(4, 4, 4.5, 2, -0.3, 0, 7); g.fill(); break;
+  }
+}
+
 // ---------- input ----------
 function camera() {
   const me = interp('p', myId) || SPAWN;
@@ -289,16 +473,13 @@ cv.addEventListener('pointerdown', (ev) => {
   if (best) { send({ t: 'atk', id: best.id }); tapMark = { x: best.x, y: best.y, t: performance.now(), atk: true }; }
   else { send({ t: 'go', x: wx, y: wy }); tapMark = { x: wx, y: wy, t: performance.now() }; }
 });
-function openChat() { $('chatbox').classList.add('open'); $('say').style.display = 'none'; $('invite').style.display = 'none'; $('bag').style.display = 'none'; $('msg').focus(); }
-function closeChat() { $('chatbox').classList.remove('open'); $('say').style.display = ''; $('invite').style.display = ''; $('bag').style.display = ''; $('msg').blur(); }
+function openChat() { $('chatbox').classList.add('open'); $('say').style.display = 'none'; $('invite').style.display = 'none'; $('bag').style.display = 'none'; $('mebtn').style.display = 'none'; $('msg').focus(); }
+function closeChat() { $('chatbox').classList.remove('open'); $('say').style.display = ''; $('invite').style.display = ''; $('bag').style.display = ''; $('mebtn').style.display = ''; $('msg').blur(); }
 function sendChat() { const t = $('msg').value.trim(); if (t) send({ t: 'say', text: t }); $('msg').value = ''; closeChat(); }
 $('say').onclick = openChat; $('send').onclick = sendChat;
 $('msg').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); sendChat(); } if (e.key === 'Escape') closeChat(); });
 addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target !== $('msg') && !$('chatbox').classList.contains('open')) { e.preventDefault(); openChat(); } });
-$('nm').onclick = () => {
-  const n = prompt('Your name (2 to 16 letters):', myName);
-  if (n && n.trim().length >= 2) { myName = n.trim().slice(0, 16); store.set('ut_name', myName); send({ t: 'hi', name: myName, hue: myHue }); }
-};
+$('nm').onclick = () => openMe();
 $('invite').onclick = async () => {
   const url = location.origin + location.pathname;
   const text = "I'm stuck in a tutorial with strangers. Come fight slimes.";
@@ -332,11 +513,9 @@ function drawPlayer(p, now) {
   if (p.dead) cx.globalAlpha = 0.35;
   cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(0, 14, 15, 6, 0, 0, 7); cx.fill();
   // stick "sword" (the budget sword)
+  if (swing > 0) { cx.save(); cx.translate(10, -2); cx.strokeStyle = `rgba(255,255,255,${0.6 * (1 - swing)})`; cx.lineWidth = 6; cx.lineCap = 'round'; cx.beginPath(); cx.arc(0, 0, 26, -0.6 - Math.PI / 2, -0.6 - Math.PI / 2 + swing * 2.2); cx.stroke(); cx.restore(); }
   cx.save(); cx.translate(10, -2); cx.rotate(-0.6 + swing * 2.2); drawHand(cx, p.hand); cx.restore();
-  cx.fillStyle = h ? '#fff' : `hsl(${p.hue} 70% 55%)`; cx.strokeStyle = '#1b1f17'; cx.lineWidth = isMe ? 3 : 2;
-  cx.beginPath(); cx.arc(0, 0, 14, 0, 7); cx.fill(); cx.stroke();
-  cx.fillStyle = '#1b1f17'; cx.beginPath(); cx.arc(-5, -3, 2.2, 0, 7); cx.arc(5, -3, 2.2, 0, 7); cx.fill();
-  if (p.dead) { cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(-8, -6); cx.lineTo(-3, -1); cx.moveTo(-3, -6); cx.lineTo(-8, -1); cx.moveTo(3, -6); cx.lineTo(8, -1); cx.moveTo(8, -6); cx.lineTo(3, -1); cx.stroke(); }
+  drawBody(cx, p, isMe, h, now);
   if (p.hat >= 0) drawHat(cx, p.hat, now);
   cx.globalAlpha = 1;
   if (p.hp < p.max && !p.dead) { cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(-15, 17, 30, 4); cx.fillStyle = '#ff5c5c'; cx.fillRect(-15, 17, 30 * p.hp / p.max, 4); }
@@ -346,12 +525,15 @@ function drawTag(p) {
   const isMe = p.id === myId, tag = p.name + ' · ' + p.lvl;
   cx.font = (isMe ? '700 ' : '600 ') + '12px system-ui,sans-serif'; cx.textAlign = 'center';
   cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText(tag, p.tagX, p.tagY); cx.fillStyle = isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, p.tagX, p.tagY);
+  const ti = p.look && p.look[3];
+  if (ti > 0 && TITLES[ti]) { const t = '«' + TITLES[ti].name + '»'; cx.font = 'italic 600 10px system-ui,sans-serif'; cx.strokeText(t, p.tagX, p.tagY + 12); cx.fillStyle = '#bfe3ff'; cx.fillText(t, p.tagX, p.tagY + 12); }
 }
 function drawSlime(s, now) {
   const boss = s.kind === BOSS, todo = s.kind === TODO, r = boss ? 42 : todo ? 20 : 16, wob = Math.sin(now / 160 + s.id) * 0.08;
-  cx.save(); cx.translate(s.x, s.y);
+  const ht = now - (slimeHit.get(s.id) || -1e9), sq = ht < 160 ? (1 - ht / 160) * 0.35 : 0, fl = ht < 70;
+  cx.save(); cx.translate(s.x + (ht < 120 ? (Math.random() - .5) * 4 : 0), s.y);
   cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(0, r * 0.75, r, r * 0.35, 0, 0, 7); cx.fill();
-  cx.scale(1 + wob, 1 - wob);
+  cx.scale(1 + wob + sq, 1 - wob - sq * 0.8);
   cx.beginPath(); cx.ellipse(0, 0, r, r * 0.82, 0, 0, 7);
   if (boss) {
     cx.save(); cx.clip(); const t = 12;
@@ -363,6 +545,7 @@ function drawSlime(s, now) {
     cx.fillStyle = ['#7be36a', '#6ad8c9', '#a6e05a', '#b9b9b9', '#8fe0a0', '#e0d35a'][s.kind % 6]; cx.fill(); cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; cx.stroke();
     cx.fillStyle = 'rgba(255,255,255,.45)'; cx.beginPath(); cx.ellipse(-6, -6, 4, 3, -0.5, 0, 7); cx.fill();
   }
+  if (fl) { cx.beginPath(); cx.ellipse(0, 0, r, r * 0.82, 0, 0, 7); cx.fillStyle = 'rgba(255,255,255,.85)'; cx.fill(); }
   cx.fillStyle = boss ? '#fff' : '#1b1f17'; const e = boss ? 9 : 4; cx.beginPath(); cx.arc(-r * 0.32, -r * 0.1, e * 0.5, 0, 7); cx.arc(r * 0.32, -r * 0.1, e * 0.5, 0, 7); cx.fill();
   cx.restore();
   cx.font = (boss ? '800 13px' : '600 10px') + ' ui-monospace,Consolas,monospace'; cx.textAlign = 'center';
@@ -443,7 +626,9 @@ function frame() {
   cx.setTransform(DPR, 0, 0, DPR, 0, 0); cx.lineJoin = 'round';
   cx.fillStyle = '#23502b'; cx.fillRect(0, 0, vw, vh);
   const cam = camera();
-  cx.translate(-Math.round(cam.x), -Math.round(cam.y));
+  const sx = (Math.random() - .5) * shakeAmt * 2, sy = (Math.random() - .5) * shakeAmt * 2; shakeAmt *= 0.86; if (shakeAmt < 0.3) shakeAmt = 0;
+  cx.translate(-Math.round(cam.x) + sx, -Math.round(cam.y) + sy);
+  if (now - comboAt > 2500 && comboN) { comboN = 0; $('combo').style.opacity = 0; }
   drawWorld(now);
   if (tapMark && now - tapMark.t < 500) { const k = (now - tapMark.t) / 500; cx.strokeStyle = tapMark.atk ? `rgba(255,80,80,${1 - k})` : `rgba(255,255,255,${1 - k})`; cx.lineWidth = 2; cx.beginPath(); cx.arc(tapMark.x, tapMark.y, 6 + 14 * k, 0, 7); cx.stroke(); }
   const me = interp('p', myId);
@@ -455,14 +640,14 @@ function frame() {
     const placed = [];
     cx.font = '700 12px system-ui,sans-serif';
     for (const p of ps) {
-      const w = cx.measureText(p.name + ' · ' + p.lvl).width + 6;
+      const w = cx.measureText(p.name + ' · ' + p.lvl).width + 6, th = p.look && p.look[3] > 0 ? 26 : 14;
       let y = p.y + 30;
       for (let tries = 0; tries < 12; tries++) {
-        const hit = placed.find((r) => Math.abs(r.x - p.x) < (r.w + w) / 2 && Math.abs(r.y - y) < 14);
+        const hit = placed.find((r) => Math.abs(r.x - p.x) < (r.w + w) / 2 && y < r.y + r.h && r.y < y + th);
         if (!hit) break;
-        y = hit.y + 14;
+        y = hit.y + hit.h;
       }
-      placed.push({ x: p.x, y, w }); p.tagX = p.x; p.tagY = y;
+      placed.push({ x: p.x, y, w, h: th }); p.tagX = p.x; p.tagY = y;
       draw.push({ y: p.y, f: () => drawPlayer(p, now), tag: p });
     }
   }
@@ -478,11 +663,28 @@ function frame() {
   // floating numbers and bits
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i], k = (now - f.t) / f.life; if (k >= 1) { fx.splice(i, 1); continue; }
+    if (k < 0) continue;
+    if (f.item != null) {
+      // loot flying in an arc from the slime to you, spinning, then landing
+      const me2 = interp('p', myId), tx = me2 ? me2.x : f.tx, ty = me2 ? me2.y - 40 : f.ty, e = k;
+      const x = f.x + (tx - f.x) * e, y = f.y + (ty - f.y) * e - Math.sin(e * Math.PI) * 90;
+      const it = ITEMS[f.item]; cx.save(); cx.translate(x, y); cx.rotate(e * 6.28 * (it.slot === 'hand' ? 1 : 0.3)); cx.scale(1.4, 1.4);
+      cx.shadowColor = RARITY[it.r].color; cx.shadowBlur = 14;
+      if (it.slot === 'hat') { cx.translate(0, 20); drawHat(cx, f.item, now); } else { cx.translate(0, 14); drawHand(cx, f.item); }
+      cx.restore(); continue;
+    }
     cx.globalAlpha = 1 - k;
-    if (f.dot) { const t = (now - f.t) / 1000; cx.fillStyle = f.c; cx.fillRect(f.x + f.vx * t - 3, f.y + f.vy * t + 300 * t * t - 3, 6, 6); }
-    else { cx.font = '800 15px system-ui,sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.7)'; cx.strokeText(f.text, f.x, f.y - k * 26); cx.fillStyle = f.c; cx.fillText(f.text, f.x, f.y - k * 26); }
+    if (f.ring) { cx.strokeStyle = f.c; cx.lineWidth = 4 * (1 - k); cx.beginPath(); cx.arc(f.x, f.y, f.r * (0.3 + k), 0, 7); cx.stroke(); }
+    else if (f.dot) { const t = (now - f.t) / 1000, z = f.sz || 6; cx.fillStyle = f.c; cx.fillRect(f.x + f.vx * t - z / 2, f.y + f.vy * t + 500 * t * t - z / 2, z, z); }
+    else {
+      const b = f.big || 1, pop = k < 0.15 ? 1 + (0.15 - k) * 4 : 1, sz = Math.round(15 * b * pop);
+      cx.font = `900 ${sz}px system-ui,sans-serif`; cx.textAlign = 'center'; cx.lineWidth = 3 + b; cx.strokeStyle = 'rgba(0,0,0,.75)';
+      const yy = f.y - k * 30 * b; cx.strokeText(f.text, f.x, yy); cx.fillStyle = f.c; cx.fillText(f.text, f.x, yy);
+    }
     cx.globalAlpha = 1;
   }
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (now - redFlash < 220) { cx.fillStyle = `rgba(255,40,40,${0.25 * (1 - (now - redFlash) / 220)})`; cx.fillRect(0, 0, vw, vh); }
   requestAnimationFrame(frame);
 }
 connect();

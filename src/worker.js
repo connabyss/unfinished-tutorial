@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { ITEMS, RARITY, DROP_CHANCE, rollItem, PATCHES, patchGoal, patchName } from "../public/items.js";
+import { ITEMS, RARITY, DROP_CHANCE, rollItem, PATCHES, patchGoal, patchName, SHAPES, EYES, MOUTHS, TITLES } from "../public/items.js";
 
 // One shared world for everyone. The browser connects to /ws; everything else is the static page.
 export default {
@@ -70,7 +70,7 @@ export class World extends DurableObject {
       id, ws, name: "Player_" + (1000 + Math.floor(Math.random() * 9000)), hue: Math.floor(Math.random() * 360),
       x: SPAWN.x + (Math.random() - 0.5) * 140, y: SPAWN.y + 20 + Math.random() * 60, tx: null, ty: null,
       target: null, hp: 10, max: 10, lvl: 1, xp: 0, kills: 0, lastHit: 0, lastHurt: 0, lastRegen: 0,
-      deadUntil: 0, lastSay: 0, named: false, hat: -1, hand: -1, bucket: 0, bucketAt: Date.now(),
+      deadUntil: 0, lastSay: 0, named: false, hat: -1, hand: -1, look: [0, 0, 0, 0], combo: 0, bucket: 0, bucketAt: Date.now(),
     };
     this.players.set(id, p);
     ws.send(JSON.stringify({ t: "you", id, total: this.total, w: W, h: H }));
@@ -104,7 +104,11 @@ export class World extends DurableObject {
     if (m.t === "hi") {
       const name = cleanName(m.name);
       if (name) p.name = name;
-      if (Number.isFinite(m.hue)) p.hue = Math.floor(clamp(m.hue, 0, 359));
+      if (Number.isFinite(m.hue)) p.hue = Math.floor(clamp(m.hue, 0, 360)); // 360 = rainbow
+      if (Array.isArray(m.look)) {
+        const lim = [SHAPES.length, EYES.length, MOUTHS.length, TITLES.length];
+        p.look = lim.map((n, i) => (Number.isInteger(m.look[i]) && m.look[i] >= 0 && m.look[i] < n ? m.look[i] : 0));
+      }
       if (!p.named) {
         p.named = true;
         const alone = this.players.size === 1;
@@ -182,15 +186,18 @@ export class World extends DurableObject {
         if (d <= t.r + REACH) {
           gx = null;
           if (now - p.lastHit >= 450) {
+            // keep swinging without a break to build a combo; every 5th hit in a combo is a crit
+            p.combo = now - p.lastHit < 2500 ? p.combo + 1 : 1;
             p.lastHit = now;
-            const dmg = 1 + Math.floor((p.lvl - 1) / 2);
+            const crit = p.combo % 5 === 0 || Math.random() < 0.08;
+            const dmg = (1 + Math.floor((p.lvl - 1) / 2)) * (crit ? 2 : 1);
             if (t.fence) {
               this.fence.hp -= dmg;
-              this.events.push({ e: "fhit", by: p.id, y: Math.round(t.y), dmg });
+              this.events.push({ e: "fhit", by: p.id, y: Math.round(t.y), dmg, crit, combo: p.combo });
               if (this.fence.hp <= 0) this.openArea2(p);
             } else {
               t.hp -= dmg; t.hitters.add(p.id);
-              this.events.push({ e: "hit", by: p.id, id: t.id, dmg });
+              this.events.push({ e: "hit", by: p.id, id: t.id, dmg, crit, combo: p.combo });
               if (t.hp <= 0) this.kill(t);
             }
           }
@@ -261,7 +268,7 @@ export class World extends DurableObject {
       const p = this.players.get(pid);
       if (!p) continue;
       p.kills++;
-      this.loot(p, boss, s.kind === TODO);
+      this.loot(p, boss, s.kind === TODO, s);
       if (p.lvl >= LEVEL_CAP) continue;
       p.xp += xp;
       while (p.lvl < LEVEL_CAP && p.xp >= xpFor(p.lvl)) {
@@ -269,7 +276,7 @@ export class World extends DurableObject {
         this.events.push({ e: "lvl", id: p.id, lvl: p.lvl, cap: p.lvl >= LEVEL_CAP });
       }
     }
-    this.events.push({ e: "kill", id: s.id, x: Math.round(s.x), y: Math.round(s.y), boss, helpers: s.hitters.size, total: this.total });
+    this.events.push({ e: "kill", id: s.id, x: Math.round(s.x), y: Math.round(s.y), boss, helpers: s.hitters.size, total: this.total, by: [...s.hitters] });
     if (boss) {
       this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who hit it got Rare loot or better. Some of it isn't finished.` });
     } else if (this.total % 100 === 0) {
@@ -280,10 +287,10 @@ export class World extends DurableObject {
     if (!hasBoss && this.total % BOSS_EVERY === 0) this.spawnSlime(true);
   }
 
-  loot(p, boss, todo) {
+  loot(p, boss, todo, s) {
     if (!boss && Math.random() >= (todo ? 0.5 : DROP_CHANCE)) return;
     const item = rollItem(Math.random, boss);
-    try { p.ws.send(JSON.stringify({ t: "loot", item })); } catch {}
+    try { p.ws.send(JSON.stringify({ t: "loot", item, x: Math.round(s.x), y: Math.round(s.y) })); } catch {}
     const it = ITEMS[item];
     if (it.r >= 2) this.events.push({ e: "sys", text: it.r === 3
       ? `${p.name} found ${it.name} (Unfinished). It doesn't exist. They're wearing it anyway.`
@@ -323,7 +330,7 @@ export class World extends DurableObject {
     for (const q of this.players.values()) {
       if (!q.named) continue;
       online++;
-      p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.xp, xpFor(q.lvl), q.kills, q.hat, q.hand]);
+      p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.xp, xpFor(q.lvl), q.kills, q.hat, q.hand, q.look]);
     }
     for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind]);
     const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch)],

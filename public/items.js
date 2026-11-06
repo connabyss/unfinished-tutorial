@@ -58,3 +58,22 @@ export const PATCHES = [
 ];
 export const patchGoal = (n) => 50 + 25 * n; // kills needed to ship patch number n (0-based)
 export const patchName = (n) => "0.0." + (n + 1);
+
+// Character maker. Players send the index of each choice; the server only checks the range.
+export const SHAPES = ["Circle", "Default Cube", "Blob", "Low-poly"];
+export const EYES = ["Dots", "Sleepy", "Angry", "Googly", "Visor", "Placeholder X"];
+export const MOUTHS = ["None", "Smile", "Grumpy", "Open", "Mustache"];
+// Titles shown under your name. "need" is checked in your browser against your lifetime stats.
+export const TITLES = [
+  { name: "Fresh Install", need: null },
+  { name: "Slime Intern", need: { kills: 25 }, how: "Kill 25 slimes" },
+  { name: "Beta Tester", need: { kills: 150 }, how: "Kill 150 slimes" },
+  { name: "Unpaid QA", need: { deaths: 5 }, how: "Die 5 times" },
+  { name: "Fence Enjoyer", need: { fence: 60 }, how: "Hit the Area 2 fence 60 times" },
+  { name: "Combo Goblin", need: { combo: 20 }, how: "Land a 20-hit combo" },
+  { name: "Hat Haver", need: { found: 5 }, how: "Find 5 different items" },
+  { name: "Max Level (it's 5)", need: { lvl: 5 }, how: "Reach level 5" },
+  { name: "Boss Puncher", need: { boss: 1 }, how: "Help kill MISSING_TEXTURE" },
+  { name: "Completionist (16/16)", need: { found: 16 }, how: "Find all 16 items" },
+  { name: "Mostly Finished", need: { kills: 1000 }, how: "Kill 1,000 slimes" },
+];
