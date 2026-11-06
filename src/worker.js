@@ -14,7 +14,10 @@ export default {
   },
 };
 
-const W = 1600, H = 1200, SPAWN = { x: 800, y: 600 };
+const W = 2400, H = 1200, SPAWN = { x: 800, y: 600 };
+const FENCE_X = 1560;        // the Area 2 fence. Everything right of it is Area 2.
+const AREA2_OPEN_MS = 180000; // how long the hole stays open
+const TODO = 98;             // kind index for Area 2's enemy
 const SAFE = 110;            // safe radius around spawn
 const TICK = 100;            // ms
 const MAX_PLAYERS = 60;
@@ -40,6 +43,7 @@ export class World extends DurableObject {
     this.dirty = false;
     this.timer = null;
     this.lastSave = 0;
+    this.fence = { hp: 150, max: 150, openUntil: 0 };
     ctx.blockConcurrencyWhile(async () => {
       this.total = (await ctx.storage.get("total")) || 0;
       this.patch = (await ctx.storage.get("patch")) || 0;          // patches shipped so far
@@ -117,7 +121,8 @@ export class World extends DurableObject {
       if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) return;
       p.tx = clamp(m.x, 20, W - 20); p.ty = clamp(m.y, 20, H - 20); p.target = null;
     } else if (m.t === "atk") {
-      if (this.slimes.has(m.id)) { p.target = m.id; p.tx = null; }
+      if (m.id === "fence" && !this.fence.openUntil) { p.target = "fence"; p.tx = null; }
+      else if (this.slimes.has(m.id)) { p.target = m.id; p.tx = null; }
     } else if (m.t === "say") {
       if (typeof m.text !== "string") return;
       const text = m.text.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 80);
@@ -127,16 +132,18 @@ export class World extends DurableObject {
     }
   }
 
-  spawnSlime(boss = false) {
+  spawnSlime(boss = false, todo = false) {
     const id = this.nextId++;
     let x, y;
     for (let i = 0; i < 20; i++) {
-      x = 80 + Math.random() * (W - 160); y = 80 + Math.random() * (H - 160);
+      x = 80 + Math.random() * (FENCE_X - 160); y = 80 + Math.random() * (H - 160);
       if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > (boss ? 300 : 220)) break;
     }
+    if (todo) { x = FENCE_X + 120 + Math.random() * (W - FENCE_X - 200); y = 80 + Math.random() * (H - 160); }
     const n = this.players.size;
     const s = boss
       ? { id, x, y, hp: 30 + 12 * n, kind: BOSS, r: 42, dmg: 2, hitters: new Set() }
+      : todo ? { id, x, y, hp: 8, kind: TODO, r: 20, dmg: 2, hitters: new Set() }
       : { id, x, y, hp: 3, kind: Math.floor(Math.random() * SLIME_NAMES.length), r: 16, dmg: 1, hitters: new Set() };
     s.max = s.hp; s.hopAt = Date.now() + Math.random() * 1500; s.vx = 0; s.vy = 0; s.hopEnd = 0; s.lastBite = 0;
     this.slimes.set(id, s);
@@ -149,9 +156,14 @@ export class World extends DurableObject {
     const alive = [...this.players.values()].filter((p) => p.named);
     // keep the slime population matched to how many people are around
     const want = Math.min(32, 6 + 2 * alive.length);
-    let normal = 0;
-    for (const s of this.slimes.values()) if (s.kind !== BOSS) normal++;
+    let normal = 0, todos = 0;
+    for (const s of this.slimes.values()) { if (s.kind === TODO) todos++; else if (s.kind !== BOSS) normal++; }
     if (normal < want && Math.random() < 0.3) this.spawnSlime();
+    const f = this.fence;
+    if (f.openUntil) {
+      if (todos < Math.min(16, 4 + alive.length) && Math.random() < 0.3) this.spawnSlime(false, true);
+      if (now >= f.openUntil) this.closeArea2();
+    }
 
     // players
     for (const p of this.players.values()) {
@@ -162,7 +174,8 @@ export class World extends DurableObject {
         continue;
       }
       let gx = p.tx, gy = p.ty;
-      const t = p.target != null ? this.slimes.get(p.target) : null;
+      const t = p.target === "fence" ? (this.fence.openUntil ? null : { x: FENCE_X, y: clamp(p.y, 40, H - 40), r: 4, fence: true })
+        : p.target != null ? this.slimes.get(p.target) : null;
       if (p.target != null && !t) p.target = null;
       if (t) {
         const d = dist(p, t);
@@ -171,9 +184,15 @@ export class World extends DurableObject {
           if (now - p.lastHit >= 450) {
             p.lastHit = now;
             const dmg = 1 + Math.floor((p.lvl - 1) / 2);
-            t.hp -= dmg; t.hitters.add(p.id);
-            this.events.push({ e: "hit", by: p.id, id: t.id, dmg });
-            if (t.hp <= 0) this.kill(t);
+            if (t.fence) {
+              this.fence.hp -= dmg;
+              this.events.push({ e: "fhit", by: p.id, y: Math.round(t.y), dmg });
+              if (this.fence.hp <= 0) this.openArea2(p);
+            } else {
+              t.hp -= dmg; t.hitters.add(p.id);
+              this.events.push({ e: "hit", by: p.id, id: t.id, dmg });
+              if (t.hp <= 0) this.kill(t);
+            }
           }
         } else { gx = t.x; gy = t.y; }
       }
@@ -182,6 +201,7 @@ export class World extends DurableObject {
         if (d <= step) { p.x = gx; p.y = gy; if (!t) { p.tx = p.ty = null; } }
         else { p.x += (dx / d) * step; p.y += (dy / d) * step; }
       }
+      if (!this.fence.openUntil && p.x > FENCE_X - 16) p.x = FENCE_X - 16; // the fence is solid until it breaks
       if (p.hp < p.max && now - p.lastHurt > 4000 && now - p.lastRegen > 1500) { p.hp++; p.lastRegen = now; }
     }
 
@@ -195,7 +215,11 @@ export class World extends DurableObject {
         s.vx = Math.cos(ang) * sp; s.vy = Math.sin(ang) * sp;
         s.hopEnd = now + 450; s.hopAt = now + (near ? 900 : 1400 + Math.random() * 1600);
       }
-      if (now < s.hopEnd) { s.x = clamp(s.x + s.vx * dt, 30, W - 30); s.y = clamp(s.y + s.vy * dt, 30, H - 30); }
+      if (now < s.hopEnd) {
+        // slimes stay on their own side of the fence, open or not
+        const lo = s.kind === TODO ? FENCE_X + 30 : 30, hi = s.kind === TODO ? W - 30 : FENCE_X - 30;
+        s.x = clamp(s.x + s.vx * dt, lo, hi); s.y = clamp(s.y + s.vy * dt, 30, H - 30);
+      }
       // the spawn circle is a safe zone: slimes respect the tutorial
       const sd = Math.hypot(s.x - SPAWN.x, s.y - SPAWN.y), keep = SAFE + s.r;
       if (sd < keep) { const k = keep / (sd || 1); s.x = SPAWN.x + (s.x - SPAWN.x) * k; s.y = SPAWN.y + (s.y - SPAWN.y) * k; }
@@ -232,12 +256,12 @@ export class World extends DurableObject {
       this.events.push({ e: "sys", text: `Patch ${patchName(n)} shipped. ${note}` });
     }
     const boss = s.kind === BOSS;
-    const xp = boss ? 6 : 1;
+    const xp = boss ? 6 : s.kind === TODO ? 3 : 1;
     for (const pid of s.hitters) {
       const p = this.players.get(pid);
       if (!p) continue;
       p.kills++;
-      this.loot(p, boss);
+      this.loot(p, boss, s.kind === TODO);
       if (p.lvl >= LEVEL_CAP) continue;
       p.xp += xp;
       while (p.lvl < LEVEL_CAP && p.xp >= xpFor(p.lvl)) {
@@ -256,14 +280,35 @@ export class World extends DurableObject {
     if (!hasBoss && this.total % BOSS_EVERY === 0) this.spawnSlime(true);
   }
 
-  loot(p, boss) {
-    if (!boss && Math.random() >= DROP_CHANCE) return;
+  loot(p, boss, todo) {
+    if (!boss && Math.random() >= (todo ? 0.5 : DROP_CHANCE)) return;
     const item = rollItem(Math.random, boss);
     try { p.ws.send(JSON.stringify({ t: "loot", item })); } catch {}
     const it = ITEMS[item];
     if (it.r >= 2) this.events.push({ e: "sys", text: it.r === 3
       ? `${p.name} found ${it.name} (Unfinished). It doesn't exist. They're wearing it anyway.`
       : `${p.name} found ${it.name} (${RARITY[it.r].name}).` });
+  }
+
+  openArea2(p) {
+    const f = this.fence;
+    f.hp = 0; f.openUntil = Date.now() + AREA2_OPEN_MS;
+    for (const q of this.players.values()) if (q.target === "fence") q.target = null;
+    this.events.push({ e: "area2", open: true, by: p.id });
+    this.events.push({ e: "sys", text: `${p.name} landed the last hit. The fence is down. AREA 2 is open for 3 minutes before the devs notice.` });
+  }
+
+  closeArea2() {
+    const f = this.fence;
+    const n = this.players.size;
+    f.max = 120 + 40 * Math.max(1, n); f.hp = f.max; f.openUntil = 0;
+    let sent = 0;
+    for (const q of this.players.values()) if (q.x > FENCE_X - 16) {
+      q.x = SPAWN.x + (Math.random() - 0.5) * 140; q.y = SPAWN.y + 20 + Math.random() * 60; q.tx = q.ty = null; q.target = null; sent++;
+    }
+    for (const [id, s] of this.slimes) if (s.kind === TODO) this.slimes.delete(id);
+    this.events.push({ e: "area2", open: false });
+    this.events.push({ e: "sys", text: `The devs found the hole and rebuilt the fence.${sent ? ` ${sent} ${sent === 1 ? "person was" : "people were"} sent back to the tutorial.` : ""} It has more HP now.` });
   }
 
   save(force = false) {
@@ -281,7 +326,8 @@ export class World extends DurableObject {
       p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.xp, xpFor(q.lvl), q.kills, q.hat, q.hand]);
     }
     for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind]);
-    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch)] });
+    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch)],
+      fz: [this.fence.hp, this.fence.max, this.fence.openUntil ? Math.ceil((this.fence.openUntil - Date.now()) / 1000) : 0] });
     this.events = [];
     for (const q of this.players.values()) {
       try { q.ws.send(msg); } catch { this.leave(q); }

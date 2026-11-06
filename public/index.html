@@ -60,7 +60,7 @@
   <div class="bar" id="hp"><i></i></div>
   <div class="bar" id="xp"><i></i></div>
 </div>
-<div id="world" class="hud"><div><b id="on">0</b> online</div><div><b id="tot">0</b> slimes killed by everyone</div><div id="pt">Next patch</div><div class="bar" id="pb"><i></i></div></div>
+<div id="world" class="hud"><div><b id="on">0</b> online</div><div><b id="tot">0</b> slimes killed by everyone</div><div id="a2" style="display:none;color:#ff7bf0;font-weight:800"></div><div id="pt">Next patch</div><div class="bar" id="pb"><i></i></div></div>
 <div id="log"></div>
 <div id="bar">
   <button id="say">💬 Chat</button>
@@ -92,13 +92,17 @@ const GUY_LINES = [
   "The rest of the game is coming soon. I've said that since launch.",
   "Level cap is 5. Levels 6 to 99 are on the roadmap.",
   "I was supposed to give you a sword. Budget.",
+  "That fence to Area 2 has HP. I'm not supposed to tell you that.",
   "Slimes drop loot now. The devs called it a content update.",
   "Tap Bag to wear your loot. Every item has the same stats: none.",
 ];
 const SIGNS = [
   { x: 960, y: 600, title: "SHOP", text: "Closed for launch." },
   { x: 650, y: 650, title: "RESPAWN POINT", text: "Also the only point. Slimes can't come in here. They respect the tutorial." },
-  { x: 1530, y: 600, title: "AREA 2 →", text: "Coming soon." },
+  { x: 1470, y: 690, title: "AREA 2 →", text: "Coming soon. The fence has HP, though. Tap it. Bring friends." },
+  { x: 1700, y: 560, title: "AREA 2", text: "You made it. This is everything they built." },
+  { x: 2330, y: 560, title: "AREA 3 →", text: "Coming soon. For real this time." },
+  { x: 2000, y: 1000, title: "ROCK (PLACEHOLDER)", text: "Every rock out here is a grey box. Art is 'in progress'." },
   { x: 1180, y: 920, title: "QUEST BOARD", text: "Kill slimes. Reward: you killed slimes." },
   { x: 430, y: 470, title: "HOUSE", text: "It's only the front. Like most of the game." },
   { x: 260, y: 960, title: "TREE", text: "Cardboard. Don't look behind it." },
@@ -109,7 +113,9 @@ const R = rng(7), FLOWERS = [], BUSHES = [];
 for (let i = 0; i < 140; i++) FLOWERS.push({ x: R() * W, y: R() * H, c: ['#ffe57a', '#ff9bd2', '#ffffff', '#9fd3ff'][Math.floor(R() * 4)] });
 for (let i = 0; i < 26; i++) { const x = 60 + R() * (W - 120), y = 60 + R() * (H - 120); if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > 160) BUSHES.push({ x, y, r: 14 + R() * 12 }); }
 const SLIME_NAMES = ["SLIME_FINAL", "SLIME_FINAL_v2", "SLIME_FINAL_v2_ACTUAL", "slime (placeholder)", "slime_copy(3)", "SLIME_DO_NOT_SHIP"];
-const BOSS = 99;
+const BOSS = 99, TODO = 98, FENCE_X = 1560;
+const ROCKS = [[1760, 320, 40], [1980, 760, 56], [2210, 420, 34], [1850, 1040, 30], [2280, 900, 44], [2080, 200, 28]];
+let fence = [150, 150, 0], fenceShake = 0;
 
 // ---------- state ----------
 let ws = null, myId = null, snapA = null, snapB = null, snapAt = 0;
@@ -143,6 +149,7 @@ function onSnap(m) {
   snapB = { p: toMap(m.p, PK), m: toMap(m.m, MK) };
   snapAt = performance.now();
   total = m.total;
+  if (m.fz) { const was = fence[2]; fence = m.fz; $('a2').style.display = fence[2] ? '' : 'none'; if (fence[2]) $('a2').textContent = `AREA 2 OPEN: ${Math.floor(fence[2] / 60)}:${String(fence[2] % 60).padStart(2, '0')}`; }
   if (m.pa) { patch = m.pa[0]; $('pt').textContent = `Next patch 0.0.${patch + 1}: ${m.pa[1]}/${m.pa[2]} kills`; $('pb').firstChild.style.width = (100 * m.pa[1] / m.pa[2]) + '%'; }
   $('on').textContent = m.n; $('tot').textContent = total.toLocaleString();
   for (const e of m.e) onEvent(e);
@@ -171,6 +178,11 @@ function onEvent(e) {
   }
   else if (e.e === 'lvl' && e.id === myId) toast(e.cap ? 'LEVEL 5 (MAX)' : 'LEVEL ' + e.lvl + '!', e.cap ? "That's every level they made." : ['Nothing new unlocked. The skill tree is a picture.', '+2 max HP. That was the whole budget.', 'Your armor is the same. It was always a texture.'][(e.lvl - 2) % 3]);
   else if (e.e === 'lvl') log(`${nameOf(e.id)} reached level ${e.lvl}.`, true);
+  else if (e.e === 'fhit') { swings.set(e.by, now); fenceShake = now; fx.push({ x: FENCE_X + (Math.random() - .5) * 16, y: e.y - 24, text: '-' + e.dmg, c: e.by === myId ? '#fff' : '#ffe08a', t: now, life: 700 }); }
+  else if (e.e === 'area2') {
+    if (e.open) { toast('THE FENCE IS DOWN', 'AREA 2 is open for 3 minutes. Go! There is almost nothing there.'); for (let i = 0; i < 60; i++) fx.push({ x: FENCE_X, y: 60 + Math.random() * (H - 120), vx: (Math.random() - .3) * 300, vy: (Math.random() - .7) * 200, dot: true, c: '#d9c39b', t: now, life: 900 }); }
+    else toast('FENCE REBUILT', 'The devs noticed. Everyone in Area 2 was sent back.');
+  }
   else if (e.e === 'patch') toast('PATCH ' + e.name + ' SHIPPED', e.note);
   else if (e.e === 'die' && e.id === myId) toast('YOU DIED', 'Respawning at the only spawn point.');
 }
@@ -272,7 +284,8 @@ cv.addEventListener('pointerdown', (ev) => {
   if ($('chatbox').classList.contains('open')) closeChat();
   const cam = camera(), wx = ev.clientX + cam.x, wy = ev.clientY + cam.y;
   let best = null, bd = 1e9;
-  if (snapB) for (const s of snapB.m.values()) { const q = interp('m', s.id); const r = (s.kind === BOSS ? 42 : 16) + 22; const d = Math.hypot(q.x - wx, q.y - wy); if (d < r && d < bd) { bd = d; best = s; } }
+  if (snapB) for (const s of snapB.m.values()) { const q = interp('m', s.id); const r = (s.kind === BOSS ? 42 : s.kind === TODO ? 20 : 16) + 22; const d = Math.hypot(q.x - wx, q.y - wy); if (d < r && d < bd) { bd = d; best = s; } }
+  if (!best && !fence[2] && Math.abs(wx - FENCE_X) < 28) { send({ t: 'atk', id: 'fence' }); tapMark = { x: FENCE_X, y: wy, t: performance.now(), atk: true }; return; }
   if (best) { send({ t: 'atk', id: best.id }); tapMark = { x: best.x, y: best.y, t: performance.now(), atk: true }; }
   else { send({ t: 'go', x: wx, y: wy }); tapMark = { x: wx, y: wy, t: performance.now() }; }
 });
@@ -335,7 +348,7 @@ function drawTag(p) {
   cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText(tag, p.tagX, p.tagY); cx.fillStyle = isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, p.tagX, p.tagY);
 }
 function drawSlime(s, now) {
-  const boss = s.kind === BOSS, r = boss ? 42 : 16, wob = Math.sin(now / 160 + s.id) * 0.08;
+  const boss = s.kind === BOSS, todo = s.kind === TODO, r = boss ? 42 : todo ? 20 : 16, wob = Math.sin(now / 160 + s.id) * 0.08;
   cx.save(); cx.translate(s.x, s.y);
   cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(0, r * 0.75, r, r * 0.35, 0, 0, 7); cx.fill();
   cx.scale(1 + wob, 1 - wob);
@@ -344,6 +357,8 @@ function drawSlime(s, now) {
     cx.save(); cx.clip(); const t = 12;
     for (let yy = -r; yy < r; yy += t) for (let xx = -r; xx < r; xx += t) { cx.fillStyle = ((Math.floor((xx + r) / t) + Math.floor((yy + r) / t)) % 2) ? '#ff00dc' : '#111'; cx.fillRect(xx, yy, t, t); }
     cx.restore(); cx.strokeStyle = '#000'; cx.lineWidth = 3; cx.stroke();
+  } else if (todo) {
+    cx.fillStyle = '#9a9ea6'; cx.fill(); cx.setLineDash([4, 3]); cx.strokeStyle = '#fff'; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
   } else {
     cx.fillStyle = ['#7be36a', '#6ad8c9', '#a6e05a', '#b9b9b9', '#8fe0a0', '#e0d35a'][s.kind % 6]; cx.fill(); cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; cx.stroke();
     cx.fillStyle = 'rgba(255,255,255,.45)'; cx.beginPath(); cx.ellipse(-6, -6, 4, 3, -0.5, 0, 7); cx.fill();
@@ -351,8 +366,8 @@ function drawSlime(s, now) {
   cx.fillStyle = boss ? '#fff' : '#1b1f17'; const e = boss ? 9 : 4; cx.beginPath(); cx.arc(-r * 0.32, -r * 0.1, e * 0.5, 0, 7); cx.arc(r * 0.32, -r * 0.1, e * 0.5, 0, 7); cx.fill();
   cx.restore();
   cx.font = (boss ? '800 13px' : '600 10px') + ' ui-monospace,Consolas,monospace'; cx.textAlign = 'center';
-  const label = boss ? 'MISSING_TEXTURE' : SLIME_NAMES[s.kind] || 'slime';
-  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, s.y - r - 8); cx.fillStyle = boss ? '#ff7bf0' : '#e8ffe0'; cx.fillText(label, s.x, s.y - r - 8);
+  const label = boss ? 'MISSING_TEXTURE' : todo ? 'ENEMY_TODO' : SLIME_NAMES[s.kind] || 'slime';
+  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, s.y - r - 8); cx.fillStyle = boss ? '#ff7bf0' : todo ? '#ffffff' : '#e8ffe0'; cx.fillText(label, s.x, s.y - r - 8);
   if (s.hp < s.max || boss) { const bw = boss ? 80 : 28; cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw, 4); cx.fillStyle = boss ? '#ff00dc' : '#7be36a'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw * Math.max(0, s.hp) / s.max, 4); }
 }
 function drawSign(s) {
@@ -364,11 +379,17 @@ function drawSign(s) {
 function drawWorld(now) {
   // grass
   const T = 80;
-  for (let y = 0; y < H; y += T) for (let x = 0; x < W; x += T) { cx.fillStyle = ((x / T + y / T) % 2) ? '#4f9a4a' : '#55a24f'; cx.fillRect(x, y, T, T); }
+  for (let y = 0; y < H; y += T) for (let x = 0; x < FENCE_X + T; x += T) { cx.fillStyle = ((x / T + y / T) % 2) ? '#4f9a4a' : '#55a24f'; cx.fillRect(x, y, T, T); }
+  // Area 2: nobody textured it. Editor grey with grid lines.
+  cx.fillStyle = '#4a4d53'; cx.fillRect(FENCE_X, 0, W - FENCE_X, H);
+  cx.strokeStyle = 'rgba(255,255,255,.12)'; cx.lineWidth = 1; cx.beginPath();
+  for (let x = FENCE_X; x <= W; x += 40) { cx.moveTo(x, 0); cx.lineTo(x, H); } for (let y = 0; y <= H; y += 40) { cx.moveTo(FENCE_X, y); cx.lineTo(W, y); } cx.stroke();
+  cx.font = '900 64px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.08)'; cx.fillText('AREA 2', (FENCE_X + W) / 2, 300); cx.font = '700 20px ui-monospace,Consolas,monospace'; cx.fillText('(work in progress)', (FENCE_X + W) / 2, 334);
+  for (const [x, y, r] of ROCKS) { cx.fillStyle = '#8a8d93'; cx.fillRect(x - r / 2, y - r / 2, r, r); cx.strokeStyle = '#2b2d31'; cx.lineWidth = 2; cx.strokeRect(x - r / 2, y - r / 2, r, r); cx.beginPath(); cx.moveTo(x - r / 2, y - r / 2); cx.lineTo(x + r / 2, y + r / 2); cx.moveTo(x + r / 2, y - r / 2); cx.lineTo(x - r / 2, y + r / 2); cx.stroke(); }
   // path from spawn
   cx.fillStyle = '#c9b27c'; cx.beginPath(); cx.arc(SPAWN.x, SPAWN.y, 110, 0, 7); cx.fill(); cx.setLineDash([8, 8]); cx.strokeStyle = 'rgba(255,255,255,.5)'; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
-  cx.fillRect(SPAWN.x, SPAWN.y - 4, W - SPAWN.x, 48);
-  for (const f of FLOWERS) { cx.fillStyle = f.c; cx.fillRect(f.x, f.y, 3, 3); }
+  cx.fillRect(SPAWN.x, SPAWN.y - 4, FENCE_X - SPAWN.x, 48);
+  for (const f of FLOWERS) { if (f.x > FENCE_X - 4) continue; cx.fillStyle = f.c; cx.fillRect(f.x, f.y, 3, 3); }
   for (const b of BUSHES) { cx.fillStyle = '#2f6b3a'; cx.beginPath(); cx.arc(b.x, b.y, b.r, 0, 7); cx.fill(); cx.fillStyle = '#3d8a45'; cx.beginPath(); cx.arc(b.x - b.r * .25, b.y - b.r * .25, b.r * .6, 0, 7); cx.fill(); }
   // house: just a front
   cx.fillStyle = '#e8d6b0'; cx.fillRect(380, 360, 100, 80); cx.fillStyle = '#b5523b'; cx.beginPath(); cx.moveTo(370, 362); cx.lineTo(430, 316); cx.lineTo(490, 362); cx.fill();
@@ -378,8 +399,16 @@ function drawWorld(now) {
   cx.fillStyle = '#a07a4a'; cx.fillRect(296, 960, 10, 30); cx.fillStyle = '#3e8f3e'; cx.beginPath(); cx.moveTo(268, 968); cx.lineTo(301, 890); cx.lineTo(334, 968); cx.fill();
   cx.strokeStyle = '#a07a4a'; cx.lineWidth = 2; cx.stroke();
   // area 2 fence
-  for (let y = 40; y < H - 40; y += 28) { cx.fillStyle = '#d9c39b'; cx.fillRect(W - 46, y, 8, 22); }
-  cx.fillStyle = '#d9c39b'; cx.fillRect(W - 50, 30, 4, H - 60); cx.fillStyle = '#e04a3a'; cx.fillRect(W - 48, SPAWN.y - 6, 12, 52);
+  // the Area 2 fence: solid with an HP bar, or knocked flat while the hole is open
+  const open = fence[2] > 0, sh = now - fenceShake < 120 ? (Math.random() - .5) * 4 : 0;
+  if (!open) {
+    for (let y = 40; y < H - 40; y += 28) { cx.fillStyle = '#d9c39b'; cx.fillRect(FENCE_X - 4 + sh, y, 8, 22); }
+    cx.fillStyle = '#d9c39b'; cx.fillRect(FENCE_X - 8 + sh, 30, 4, H - 60); cx.fillStyle = '#e04a3a'; cx.fillRect(FENCE_X - 6 + sh, SPAWN.y - 6, 12, 52);
+    const bw = 90, by = SPAWN.y - 70; cx.fillStyle = 'rgba(0,0,0,.55)'; cx.fillRect(FENCE_X - bw / 2, by, bw, 8); cx.fillStyle = '#ff9a3d'; cx.fillRect(FENCE_X - bw / 2, by, bw * Math.max(0, fence[0]) / fence[1], 8);
+    cx.font = '800 11px ui-monospace,Consolas,monospace'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; const ft = `FENCE ${Math.max(0, fence[0])}/${fence[1]}`; cx.strokeText(ft, FENCE_X, by - 5); cx.fillStyle = '#ffd9b0'; cx.fillText(ft, FENCE_X, by - 5);
+  } else {
+    const R2 = rng(3); for (let y = 40; y < H - 40; y += 28) { cx.save(); cx.translate(FENCE_X + (R2() - .5) * 40, y + 11); cx.rotate(1.2 + R2()); cx.fillStyle = '#b8a27c'; cx.fillRect(-4, -11, 8, 22); cx.restore(); }
+  }
   cx.fillStyle = 'rgba(0,0,0,.35)'; cx.fillRect(W - 36, 0, 36, H);
   for (let i = 0; i < Math.min(patch, PATCHES.length); i++) drawPatch(PATCHES[i], now);
   for (const s of SIGNS) drawSign(s);
