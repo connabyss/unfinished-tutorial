@@ -223,10 +223,13 @@ function drawPlayer(p, now) {
   cx.fillStyle = '#1b1f17'; cx.beginPath(); cx.arc(-5, -3, 2.2, 0, 7); cx.arc(5, -3, 2.2, 0, 7); cx.fill();
   if (p.dead) { cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(-8, -6); cx.lineTo(-3, -1); cx.moveTo(-3, -6); cx.lineTo(-8, -1); cx.moveTo(3, -6); cx.lineTo(8, -1); cx.moveTo(8, -6); cx.lineTo(3, -1); cx.stroke(); }
   cx.globalAlpha = 1;
-  cx.font = (isMe ? '700 ' : '600 ') + '12px system-ui,sans-serif'; cx.textAlign = 'center';
-  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; const tag = p.name + ' · ' + p.lvl; cx.strokeText(tag, 0, 30); cx.fillStyle = isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, 0, 30);
   if (p.hp < p.max && !p.dead) { cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(-15, -24, 30, 4); cx.fillStyle = '#ff5c5c'; cx.fillRect(-15, -24, 30 * p.hp / p.max, 4); }
   cx.restore();
+}
+function drawTag(p) {
+  const isMe = p.id === myId, tag = p.name + ' · ' + p.lvl;
+  cx.font = (isMe ? '700 ' : '600 ') + '12px system-ui,sans-serif'; cx.textAlign = 'center';
+  cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText(tag, p.tagX, p.tagY); cx.fillStyle = isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, p.tagX, p.tagY);
 }
 function drawSlime(s, now) {
   const boss = s.kind === BOSS, r = boss ? 42 : 16, wob = Math.sin(now / 160 + s.id) * 0.08;
@@ -297,9 +300,24 @@ function frame() {
   const draw = [];
   if (snapB) {
     for (const id of snapB.m.keys()) { const s = interp('m', id); draw.push({ y: s.y, f: () => drawSlime(s, now) }); }
-    for (const id of snapB.p.keys()) { const p = interp('p', id); draw.push({ y: p.y, f: () => drawPlayer(p, now) }); }
+    // name tags: when players stand on top of each other, stack their labels so they never jumble
+    const ps = [...snapB.p.keys()].map((id) => interp('p', id)).sort((a, b) => (b.id === myId) - (a.id === myId) || a.y - b.y || a.id - b.id);
+    const placed = [];
+    cx.font = '700 12px system-ui,sans-serif';
+    for (const p of ps) {
+      const w = cx.measureText(p.name + ' · ' + p.lvl).width + 6;
+      let y = p.y + 30;
+      for (let tries = 0; tries < 12; tries++) {
+        const hit = placed.find((r) => Math.abs(r.x - p.x) < (r.w + w) / 2 && Math.abs(r.y - y) < 14);
+        if (!hit) break;
+        y = hit.y + 14;
+      }
+      placed.push({ x: p.x, y, w }); p.tagX = p.x; p.tagY = y;
+      draw.push({ y: p.y, f: () => drawPlayer(p, now), tag: p });
+    }
   }
   draw.sort((a, b) => a.y - b.y).forEach((d) => d.f());
+  for (const d of draw) if (d.tag) drawTag(d.tag);
   // speech
   if (snapB) for (const [id, b] of bubbles) { const p = interp('p', id); if (!p || now > b.until) { bubbles.delete(id); continue; } bubble(p.x, p.y - 22, b.text); }
   if (me) {

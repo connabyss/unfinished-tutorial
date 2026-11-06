@@ -61,7 +61,7 @@ export class World extends DurableObject {
     const id = this.nextId++;
     const p = {
       id, ws, name: "Player_" + (1000 + Math.floor(Math.random() * 9000)), hue: Math.floor(Math.random() * 360),
-      x: SPAWN.x + (Math.random() - 0.5) * 80, y: SPAWN.y + 40 + Math.random() * 40, tx: null, ty: null,
+      x: SPAWN.x + (Math.random() - 0.5) * 140, y: SPAWN.y + 20 + Math.random() * 60, tx: null, ty: null,
       target: null, hp: 10, max: 10, lvl: 1, xp: 0, kills: 0, lastHit: 0, lastHurt: 0, lastRegen: 0,
       deadUntil: 0, lastSay: 0, named: false, bucket: 0, bucketAt: Date.now(),
     };
@@ -149,7 +149,7 @@ export class World extends DurableObject {
     for (const p of this.players.values()) {
       if (p.deadUntil) {
         if (now >= p.deadUntil) {
-          p.deadUntil = 0; p.hp = p.max; p.x = SPAWN.x; p.y = SPAWN.y + 50; p.tx = p.ty = null; p.target = null;
+          p.deadUntil = 0; p.hp = p.max; p.x = SPAWN.x + (Math.random() - 0.5) * 140; p.y = SPAWN.y + 20 + Math.random() * 60; p.tx = p.ty = null; p.target = null;
         }
         continue;
       }
