@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { ITEMS, RARITY, DROP_CHANCE, rollItem } from "../public/items.js";
 
 // One shared world for everyone. The browser connects to /ws; everything else is the static page.
 export default {
@@ -63,7 +64,7 @@ export class World extends DurableObject {
       id, ws, name: "Player_" + (1000 + Math.floor(Math.random() * 9000)), hue: Math.floor(Math.random() * 360),
       x: SPAWN.x + (Math.random() - 0.5) * 140, y: SPAWN.y + 20 + Math.random() * 60, tx: null, ty: null,
       target: null, hp: 10, max: 10, lvl: 1, xp: 0, kills: 0, lastHit: 0, lastHurt: 0, lastRegen: 0,
-      deadUntil: 0, lastSay: 0, named: false, bucket: 0, bucketAt: Date.now(),
+      deadUntil: 0, lastSay: 0, named: false, hat: -1, hand: -1, bucket: 0, bucketAt: Date.now(),
     };
     this.players.set(id, p);
     ws.send(JSON.stringify({ t: "you", id, total: this.total, w: W, h: H }));
@@ -105,6 +106,11 @@ export class World extends DurableObject {
           ? `${p.name} joined. You're the only one here. Very realistic MMO launch.`
           : `${p.name} joined. Welcome to the tutorial. It's also the endgame.` });
       }
+    } else if (m.t === "wear") {
+      // what you wear is saved in your own browser; the server just checks it's a real item for that slot
+      const ok = (v, slot) => Number.isInteger(v) && ITEMS[v] && ITEMS[v].slot === slot;
+      p.hat = ok(m.hat, "hat") ? m.hat : -1;
+      p.hand = ok(m.hand, "hand") ? m.hand : -1;
     } else if (m.t === "go") {
       if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) return;
       p.tx = clamp(m.x, 20, W - 20); p.ty = clamp(m.y, 20, H - 20); p.target = null;
@@ -221,6 +227,7 @@ export class World extends DurableObject {
       const p = this.players.get(pid);
       if (!p) continue;
       p.kills++;
+      this.loot(p, boss);
       if (p.lvl >= LEVEL_CAP) continue;
       p.xp += xp;
       while (p.lvl < LEVEL_CAP && p.xp >= xpFor(p.lvl)) {
@@ -230,13 +237,23 @@ export class World extends DurableObject {
     }
     this.events.push({ e: "kill", id: s.id, x: Math.round(s.x), y: Math.round(s.y), boss, helpers: s.hitters.size, total: this.total });
     if (boss) {
-      this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Loot: a picture of loot.` });
+      this.events.push({ e: "sys", text: `MISSING_TEXTURE defeated by ${s.hitters.size} ${s.hitters.size === 1 ? "person" : "people"}. Everyone who hit it got Rare loot or better. Some of it isn't finished.` });
     } else if (this.total % 100 === 0) {
       this.events.push({ e: "sys", text: `Everyone together has now killed ${this.total} slimes. New areas added by the devs: 0.` });
     }
     let hasBoss = false;
     for (const o of this.slimes.values()) if (o.kind === BOSS) hasBoss = true;
     if (!hasBoss && this.total % BOSS_EVERY === 0) this.spawnSlime(true);
+  }
+
+  loot(p, boss) {
+    if (!boss && Math.random() >= DROP_CHANCE) return;
+    const item = rollItem(Math.random, boss);
+    try { p.ws.send(JSON.stringify({ t: "loot", item })); } catch {}
+    const it = ITEMS[item];
+    if (it.r >= 2) this.events.push({ e: "sys", text: it.r === 3
+      ? `${p.name} found ${it.name} (Unfinished). It doesn't exist. They're wearing it anyway.`
+      : `${p.name} found ${it.name} (${RARITY[it.r].name}).` });
   }
 
   save(force = false) {
@@ -251,7 +268,7 @@ export class World extends DurableObject {
     for (const q of this.players.values()) {
       if (!q.named) continue;
       online++;
-      p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.xp, xpFor(q.lvl), q.kills]);
+      p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.xp, xpFor(q.lvl), q.kills, q.hat, q.hand]);
     }
     for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind]);
     const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total });
