@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { ITEMS, RARITY, DROP_CHANCE, rollItem } from "../public/items.js";
+import { ITEMS, RARITY, DROP_CHANCE, rollItem, PATCHES, patchGoal, patchName } from "../public/items.js";
 
 // One shared world for everyone. The browser connects to /ws; everything else is the static page.
 export default {
@@ -42,6 +42,8 @@ export class World extends DurableObject {
     this.lastSave = 0;
     ctx.blockConcurrencyWhile(async () => {
       this.total = (await ctx.storage.get("total")) || 0;
+      this.patch = (await ctx.storage.get("patch")) || 0;          // patches shipped so far
+      this.patchKills = (await ctx.storage.get("patchKills")) || 0; // kills toward the next one
     });
   }
 
@@ -221,6 +223,14 @@ export class World extends DurableObject {
   kill(s) {
     this.slimes.delete(s.id);
     this.total++; this.dirty = true;
+    this.patchKills++;
+    if (this.patchKills >= patchGoal(this.patch)) {
+      const n = this.patch;
+      this.patchKills = 0; this.patch++;
+      const note = PATCHES[n] ? PATCHES[n].note : "Bug fixes and performance improvements.";
+      this.events.push({ e: "patch", n: this.patch, name: patchName(n), note });
+      this.events.push({ e: "sys", text: `Patch ${patchName(n)} shipped. ${note}` });
+    }
     const boss = s.kind === BOSS;
     const xp = boss ? 6 : 1;
     for (const pid of s.hitters) {
@@ -259,7 +269,7 @@ export class World extends DurableObject {
   save(force = false) {
     if (!this.dirty && !force) return;
     this.dirty = false; this.lastSave = Date.now();
-    this.ctx.storage.put("total", this.total);
+    this.ctx.storage.put({ total: this.total, patch: this.patch, patchKills: this.patchKills });
   }
 
   broadcast() {
@@ -271,7 +281,7 @@ export class World extends DurableObject {
       p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.xp, xpFor(q.lvl), q.kills, q.hat, q.hand]);
     }
     for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind]);
-    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total });
+    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch)] });
     this.events = [];
     for (const q of this.players.values()) {
       try { q.ws.send(msg); } catch { this.leave(q); }

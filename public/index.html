@@ -17,6 +17,7 @@
   #me .name small { opacity:.6; font-weight:400; }
   .bar { height:7px; background:rgba(255,255,255,.18); border-radius:4px; margin-top:4px; overflow:hidden; }
   .bar i { display:block; height:100%; width:0; border-radius:4px; transition:width .15s; }
+  #pb { width:170px; margin-left:auto; } #pb i { background:#6cb6ff; } #pt { margin-top:4px; font-size:12px; opacity:.9; }
   #hp i { background:#ff5c5c; } #xp i { background:var(--accent); }
   #world { top:max(10px,env(safe-area-inset-top)); right:10px; text-align:right; }
   #world b { color:var(--accent); }
@@ -59,7 +60,7 @@
   <div class="bar" id="hp"><i></i></div>
   <div class="bar" id="xp"><i></i></div>
 </div>
-<div id="world" class="hud"><div><b id="on">0</b> online</div><div><b id="tot">0</b> slimes killed by everyone</div></div>
+<div id="world" class="hud"><div><b id="on">0</b> online</div><div><b id="tot">0</b> slimes killed by everyone</div><div id="pt">Next patch</div><div class="bar" id="pb"><i></i></div></div>
 <div id="log"></div>
 <div id="bar">
   <button id="say">💬 Chat</button>
@@ -71,7 +72,7 @@
 <div id="bagp"><button class="close" id="bagx">Close</button><h2>Bag</h2><div class="sub" id="bagsub"></div><div class="grid" id="baggrid"></div></div>
 <div id="status">Connecting to the only server…</div>
 <script type="module">
-import { ITEMS, RARITY } from './items.js';
+import { ITEMS, RARITY, PATCHES } from './items.js';
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
@@ -113,6 +114,7 @@ const BOSS = 99;
 // ---------- state ----------
 let ws = null, myId = null, snapA = null, snapB = null, snapAt = 0;
 const fx = [], bubbles = new Map(), swings = new Map(), hurt = new Map();
+let patch = 0;
 let tapMark = null, guyLine = 0, guyAt = 0, total = 0;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 let myName = store.get('ut_name'), myHue = Number(store.get('ut_hue'));
@@ -141,6 +143,7 @@ function onSnap(m) {
   snapB = { p: toMap(m.p, PK), m: toMap(m.m, MK) };
   snapAt = performance.now();
   total = m.total;
+  if (m.pa) { patch = m.pa[0]; $('pt').textContent = `Next patch 0.0.${patch + 1}: ${m.pa[1]}/${m.pa[2]} kills`; $('pb').firstChild.style.width = (100 * m.pa[1] / m.pa[2]) + '%'; }
   $('on').textContent = m.n; $('tot').textContent = total.toLocaleString();
   for (const e of m.e) onEvent(e);
   const me = snapB.p.get(myId);
@@ -168,6 +171,7 @@ function onEvent(e) {
   }
   else if (e.e === 'lvl' && e.id === myId) toast(e.cap ? 'LEVEL 5 (MAX)' : 'LEVEL ' + e.lvl + '!', e.cap ? "That's every level they made." : ['Nothing new unlocked. The skill tree is a picture.', '+2 max HP. That was the whole budget.', 'Your armor is the same. It was always a texture.'][(e.lvl - 2) % 3]);
   else if (e.e === 'lvl') log(`${nameOf(e.id)} reached level ${e.lvl}.`, true);
+  else if (e.e === 'patch') toast('PATCH ' + e.name + ' SHIPPED', e.note);
   else if (e.e === 'die' && e.id === myId) toast('YOU DIED', 'Respawning at the only spawn point.');
 }
 function log(text, sys, who, said) {
@@ -377,6 +381,7 @@ function drawWorld(now) {
   for (let y = 40; y < H - 40; y += 28) { cx.fillStyle = '#d9c39b'; cx.fillRect(W - 46, y, 8, 22); }
   cx.fillStyle = '#d9c39b'; cx.fillRect(W - 50, 30, 4, H - 60); cx.fillStyle = '#e04a3a'; cx.fillRect(W - 48, SPAWN.y - 6, 12, 52);
   cx.fillStyle = 'rgba(0,0,0,.35)'; cx.fillRect(W - 36, 0, 36, H);
+  for (let i = 0; i < Math.min(patch, PATCHES.length); i++) drawPatch(PATCHES[i], now);
   for (const s of SIGNS) drawSign(s);
   // tutorial guy
   const bob = Math.sin(now / 400) * 2;
@@ -385,6 +390,23 @@ function drawWorld(now) {
   cx.fillStyle = '#1b1f17'; cx.beginPath(); cx.arc(GUY.x - 5, GUY.y - 3 + bob, 2.2, 0, 7); cx.arc(GUY.x + 5, GUY.y - 3 + bob, 2.2, 0, 7); cx.fill();
   cx.fillStyle = '#ffd34d'; cx.font = '900 22px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillText('!', GUY.x, GUY.y - 22 + bob);
   cx.font = '700 11px system-ui,sans-serif'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText('Tutorial', GUY.x, GUY.y + 32); cx.fillStyle = '#fff'; cx.fillText('Tutorial', GUY.x, GUY.y + 32);
+}
+
+// things the patch bar has shipped into the world, all slightly unfinished
+function drawPatch(p, now) {
+  const g = cx; g.save(); g.translate(p.x, p.y); g.strokeStyle = '#1b1f17'; g.lineWidth = 2;
+  const label = (t) => { g.font = '700 10px ui-monospace,Consolas,monospace'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.55)'; g.strokeText(t, 0, 34); g.fillStyle = '#dcecff'; g.fillText(t, 0, 34); };
+  switch (p.id) {
+    case 'bench': { const f = Math.sin(now / 700) * 2; g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(0, 16, 28, 6, 0, 0, 7); g.fill(); g.fillStyle = '#9b6b3c'; for (const y of [-10, -2]) { g.fillRect(-26, y + f, 52, 6); g.strokeRect(-26, y + f, 52, 6); } label('bench (no legs)'); break; }
+    case 'fountain': g.fillStyle = '#b9bcc2'; g.beginPath(); g.ellipse(0, 0, 32, 14, 0, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.ellipse(0, -2, 26, 10, 0, 0, 7); g.save(); g.clip(); for (let yy = -12; yy < 10; yy += 6) for (let xx = -26; xx < 26; xx += 6) { g.fillStyle = ((xx + yy) / 6 & 1) ? '#ff00dc' : '#111'; g.fillRect(xx, yy, 6, 6); } g.restore(); g.fillStyle = '#b9bcc2'; g.fillRect(-4, -22, 8, 20); g.strokeRect(-4, -22, 8, 20); label('water.png'); break;
+    case 'npc': g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(0, 16, 15, 6, 0, 0, 7); g.fill(); g.strokeStyle = '#1b1f17'; g.lineWidth = 3; g.beginPath(); g.moveTo(-30, 0); g.lineTo(30, 0); g.stroke(); g.lineWidth = 2; g.fillStyle = '#9aa0a6'; g.beginPath(); g.arc(0, 0, 14, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#1b1f17'; g.fillRect(-7, -4, 4, 2); g.fillRect(3, -4, 4, 2); label('NPC_02 (T-pose)'); break;
+    case 'cloud': { const b = Math.sin(now / 900) * 4; g.fillStyle = 'rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(0, 70, 40, 10, 0, 0, 7); g.fill(); g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, -20 + b); g.lineTo(0, -400); g.stroke(); g.fillStyle = '#fff'; g.strokeStyle = '#1b1f17'; g.lineWidth = 2; g.beginPath(); g.arc(-18, b, 16, 0, 7); g.arc(4, -8 + b, 20, 0, 7); g.arc(24, b, 14, 0, 7); g.fill(); g.restore(); return; }
+    case 'pond': g.fillStyle = '#4aa3ff'; g.fillRect(-50, -24, 100, 48); g.strokeRect(-50, -24, 100, 48); g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(-40, -16, 30, 3); g.translate(0, 14); label('pond (temp)'); break;
+    case 'statue': g.fillStyle = '#8d8d8d'; g.fillRect(-20, -6, 40, 20); g.strokeRect(-20, -6, 40, 20); g.fillStyle = '#bdbdbd'; g.fillRect(-9, -30, 7, 24); g.fillRect(2, -30, 7, 24); g.strokeRect(-9, -30, 7, 24); g.strokeRect(2, -30, 7, 24); g.strokeStyle = '#d9a441'; g.lineWidth = 2; g.beginPath(); for (const x of [-26, 26]) { g.moveTo(x, 14); g.lineTo(x, -60); } for (const y of [-20, -45]) { g.moveTo(-26, y); g.lineTo(26, y); } g.moveTo(-26, 14); g.lineTo(26, -45); g.stroke(); label('lead dev (half)'); break;
+    case 'spawn2': g.setLineDash([6, 6]); g.strokeStyle = 'rgba(255,255,255,.7)'; g.fillStyle = 'rgba(201,178,124,.6)'; g.beginPath(); g.arc(0, 0, 46, 0, 7); g.fill(); g.stroke(); g.setLineDash([]); label('spawn_point_2'); break;
+    case 'lamp': { const gr = g.createRadialGradient(0, -40, 4, 0, -40, 70); gr.addColorStop(0, 'rgba(255,230,120,.55)'); gr.addColorStop(1, 'rgba(255,230,120,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, -40, 70, 0, 7); g.fill(); g.fillStyle = '#333'; g.fillRect(-2, -40, 4, 54); g.fillStyle = '#ffe680'; g.beginPath(); g.arc(0, -42, 7, 0, 7); g.fill(); g.stroke(); label('lamp (always on)'); break; }
+  }
+  g.restore();
 }
 
 function frame() {
@@ -422,6 +444,7 @@ function frame() {
   if (me) {
     if (Math.hypot(me.x - GUY.x, me.y - GUY.y) < 150) { if (now - guyAt > 4200) { guyAt = now; guyLine = (guyLine + 1) % GUY_LINES.length; } bubble(GUY.x, GUY.y - 30, GUY_LINES[guyLine], '#fff6c9'); }
     for (const s of SIGNS) if (Math.hypot(me.x - s.x, me.y - s.y) < 110) bubble(s.x, s.y - 30, s.title + ': ' + s.text, '#f6e3c0');
+    for (let i = 0; i < Math.min(patch, PATCHES.length); i++) { const s = PATCHES[i]; if (Math.hypot(me.x - s.x, me.y - s.y) < 90) bubble(s.x, s.y - 44, s.title + ': ' + s.text, '#dcecff'); }
   }
   // floating numbers and bits
   for (let i = fx.length - 1; i >= 0; i--) {

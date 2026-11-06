@@ -43,3 +43,18 @@ export function rollItem(rnd, boss) {
   }
   return 0;
 }
+
+// The server-wide patch bar. Everyone's kills fill it; each full bar "ships" the next thing for good.
+// After the list runs out, every patch is "bug fixes and performance improvements" and adds nothing.
+export const PATCHES = [
+  { id: "bench", note: "Added a bench. The legs are in the next patch.", x: 640, y: 780, title: "BENCH", text: "Legs coming in a future patch." },
+  { id: "fountain", note: "Added a fountain. The water didn't load.", x: 1000, y: 380, title: "FOUNTAIN", text: "water.png not found." },
+  { id: "npc", note: "Added a second NPC. Nobody wrote their lines.", x: 560, y: 520, title: "NPC_02", text: "Hi! [DIALOGUE MISSING]" },
+  { id: "cloud", note: "Added weather: one cloud, on a string.", x: 1150, y: 230, title: "WEATHER", text: "The whole weather system. It's one cloud." },
+  { id: "pond", note: "Added a pond. Do not try to swim. It's a rectangle.", x: 300, y: 700, title: "POND (TEMP)", text: "Fishing is on the roadmap." },
+  { id: "statue", note: "Added a statue of the lead dev. They left halfway through.", x: 1250, y: 760, title: "STATUE", text: "The lead dev. Scaffolding still up." },
+  { id: "spawn2", note: "Added a second spawn point. It isn't connected to anything.", x: 1420, y: 1020, title: "SPAWN POINT 2", text: "Not connected to anything. Like the roadmap." },
+  { id: "lamp", note: "Added a street lamp. There is no night.", x: 900, y: 860, title: "LAMP", text: "Always on. There is no night." },
+];
+export const patchGoal = (n) => 50 + 25 * n; // kills needed to ship patch number n (0-based)
+export const patchName = (n) => "0.0." + (n + 1);
