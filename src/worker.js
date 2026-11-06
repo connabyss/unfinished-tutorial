@@ -125,6 +125,10 @@ export class World extends DurableObject {
   }
 
   onMsg(p, raw) {
+    try { this.handle(p, raw); } catch (err) { console.log("message error", err && err.stack); }
+  }
+
+  handle(p, raw) {
     // simple flood guard: 25 messages per second per player
     const now = Date.now();
     if (now - p.bucketAt > 1000) { p.bucket = 0; p.bucketAt = now; }
@@ -226,6 +230,10 @@ export class World extends DurableObject {
       await st.put({ ["a:" + h]: acct, ["n:" + name.toLowerCase()]: h });
       this.tell(p, { t: "key", key });
     }
+    // fill in anything an older save is missing, so a schema change never breaks old characters
+    acct.bag = acct.bag || {}; acct.wear = acct.wear || {}; acct.tu = acct.tu || [0]; acct.coins = acct.coins || 0;
+    acct.stats = Object.assign({ kills: 0, deaths: 0, fence: 0, combo: 0, boss: 0, sets: 0, lvl: 1 }, acct.stats || {});
+    acct.look = Array.isArray(acct.look) ? acct.look : [0, 0, 0, 0]; acct.lvl = acct.lvl || 1; acct.xp = acct.xp || 0;
     if (!this.players.has(p.id)) return; // they left while we were loading
     p.acct = acct; p.keyHash = h; p.name = acct.name; p.hue = acct.hue; p.look = acct.look;
     p.lvl = acct.lvl; p.xp = acct.xp; p.max = 10 + 2 * (acct.lvl - 1); p.hp = p.max;
@@ -417,6 +425,10 @@ export class World extends DurableObject {
   }
 
   tick() {
+    try { this.step(); } catch (err) { console.log("tick error", err && err.stack); this.events = []; }
+  }
+
+  step() {
     const now = Date.now(), dt = TICK / 1000;
     const alive = [...this.players.values()].filter((p) => p.named);
     // keep the slime population matched to how many people are around
