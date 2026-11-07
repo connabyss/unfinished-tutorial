@@ -73,6 +73,7 @@ export const ITEMS = [
   { id: "hardhat", slot: "hat", r: 2, a2: true, name: "Hard Hat (Area 2)", text: "Required on site. The site is unfinished." },
   { id: "scaffold", slot: "back", r: 2, a2: true, name: "Scaffolding (Area 2)", text: "You are now under construction." },
   { id: "tcaution", slot: "trail", r: 2, a2: true, name: "Trail: Caution Tape (Area 2)", text: "Leaves DO NOT CROSS behind you. Everyone crosses." },
+  { id: "oobcone", slot: "hat", r: 2, hid: true, name: "Out-of-Bounds Cone", text: "Left past the edge of the world by a dev. Proof you looked where you weren't supposed to." },
 ];
 export const A2_DROP = 0.06; // ENEMY_TODO's chance to drop an Area 2 item
 
@@ -105,7 +106,6 @@ export const GOALS = {
 };
 export const SHIP_KILLS = 100, DAY_KILLS = 50;
 export const SCRAP = [2, 6, 25];           // coins for recycling one spare copy, by rarity
-export const LUCKY_WISH = 400;             // fountain: guaranteed Rare
 export const RAINBOW_OT = 10;              // rainbow body color unlocks at overtime ★10
 export const SPIN_CD = 6000;               // spin attack cooldown (ms)
 // Overtime rewards: past level 5, every 10 stars unlocks a look everyone can see. Earned only by playing.
@@ -124,7 +124,7 @@ export const OT_REWARDS = [
 export const SECRETS = [
   { x: 430, y: 300, text: "Behind the house. There's no back. It's a flat picture of a house." },
   { x: 25, y: 25, text: "The top-left corner. Coordinates (0, 0). The origin of everything. It's grass." },
-  { x: 800, y: 1180, text: "Past the WORLD EDGE sign. Nothing happened. The fog is also a placeholder." },
+  { x: 800, y: 1180, text: "Past the WORLD EDGE sign: dev graffiti, and a hat someone left behind. Don't tell QA." },
   { x: 300, y: 700, text: "You tried to swim in the pond spot. It's a rectangle. You're standing on it." },
   { x: 2375, y: 1175, text: "Area 2's far corner: the dev room. One chair, one mug, one sticky note: 'fix later'." },
 ];
@@ -136,13 +136,13 @@ export const otNeed = (ot) => 40 + 10 * ot;
 export function rollItem(rnd, boss, epic = false) {
   if (boss) {
     const tier = epic && rnd() < 0.08 ? 3 : rnd() < 0.45 ? 2 : 1; // Rare is a 45% chance, not a guarantee
-    const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === tier && !ITEMS[i].a2);
+    const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === tier && !ITEMS[i].a2 && !ITEMS[i].hid);
     return pool[Math.floor(rnd() * pool.length)];
   }
-  const total = ITEMS.reduce((s, it) => s + (it.a2 ? 0 : RARITY[it.r].weight), 0);
+  const total = ITEMS.reduce((s, it) => s + (it.a2 || it.hid ? 0 : RARITY[it.r].weight), 0);
   let x = rnd() * total;
   for (let i = 0; i < ITEMS.length; i++) {
-    x -= ITEMS[i].a2 ? 0 : RARITY[ITEMS[i].r].weight;
+    x -= ITEMS[i].a2 || ITEMS[i].hid ? 0 : RARITY[ITEMS[i].r].weight;
     if (x < 0) return i;
   }
   return 0;
@@ -216,15 +216,14 @@ export const TITLES = [
 ];
 
 // The shop (after patch "shop"). Prices in Placeholder Coins. Rare stock rotates daily.
-export const PRICES = [15, 40, 500];
+export const PRICES = [15, 40, 250];
 export function shopStock(day) {
   const common = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r <= 1);
-  const rares = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 2 && !ITEMS[i].a2);
+  const rares = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 2 && !ITEMS[i].a2 && !ITEMS[i].hid);
   const pick = (arr, n, seed) => { const a = arr.slice(), out = []; let x = seed; while (out.length < n && a.length) { x = (x * 1103515245 + 12345) % 2147483648; out.push(a.splice(x % a.length, 1)[0]); } return out; };
   return [...pick(common, 6, day * 7 + 1), ...pick(rares, 2, day * 13 + 5)];
 }
 export const WISH_COST = 25;
-export const QUESTS_PER_DAY = 5;
 
 // NPC_02's quests (after patch "quests"). k = what to count.
 export const QUESTS = [
@@ -236,4 +235,33 @@ export const QUESTS = [
   { k: "fence", n: 30, text: "Hit the Area 2 fence 30 times. For science.", coins: 30 },
   { k: "boss", n: 1, text: "Help kill a boss. Any boss. We only have two.", coins: 80 },
   { k: "emote", n: 5, text: "Emote 5 times. Social features need engagement metrics.", coins: 15 },
+];
+
+// SKILLS: the shop sells the skills the devs cut. Coins buy levels; each level costs more, forever-ish.
+// They make fighting feel better (faster swings, bigger spins, harder counters, a dash) but never block anyone.
+export const SKILLS = [
+  { k: "swing", name: "Swing speed", text: "Swing 25ms faster per level. The animation was always optional.", max: 10 },
+  { k: "spin", name: "Spin", text: "Spin cools down 0.4s faster and reaches 8px further per level.", max: 10 },
+  { k: "counter", name: "Counter", text: "Counter crits after a dodge hit 30% harder per level.", max: 10 },
+  { k: "dash", name: "Dash", text: "Dash cools down 0.25s faster and goes 10px further per level.", max: 10 },
+];
+export const skillCost = (lvl) => 40 * (lvl + 1) * (lvl + 1); // 40, 160, 360 ... 4,400 for level 10
+export const swingMs = (lv) => 450 - 25 * (lv || 0);
+export const spinCd = (lv) => SPIN_CD - 400 * (lv || 0);
+export const dashCd = (lv) => 4000 - 250 * (lv || 0);
+
+// fake dev notes, one per shipped patch, shown in the credits
+export const DEV_NOTES = [
+  "Slimes now have eyes. Sorry about before.",
+  "Fixed a bug where the bench had legs. It was too finished.",
+  "Grass is now 4% greener. We measured.",
+  "Removed the 'win game' button. It was for testing.",
+  "Players can no longer walk through walls. There are no walls.",
+  "Lowered gravity by 0. Nobody noticed last time either.",
+  "The lamp is still always on. That's a feature now.",
+  "Slime AI improved: they now chase you on purpose.",
+  "Fixed the tutorial guy saying 'Press W'. (We did not fix it.)",
+  "Added sound to the music. Music was silent in the build we tested.",
+  "Rebalanced loot. We rolled a die. It said 'fine'.",
+  "Known issue: everything. Workaround: keep playing.",
 ];
