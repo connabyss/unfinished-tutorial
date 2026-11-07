@@ -23,6 +23,7 @@ const FENCE_X = 1560;        // the Area 2 fence. Everything right of it is Area
 const AREA2_OPEN_MS = 300000; // how long the hole stays open
 const TODO = 98;             // kind index for Area 2's enemy
 const SAFE = 110;            // safe radius around spawn
+const BOSS_LEASH = 330;      // bosses never come closer to spawn than this
 const TICK = 100;            // ms
 const MAX_PLAYERS = 60;
 const SPEED = 170;           // px/s
@@ -127,7 +128,7 @@ export class World extends DurableObject {
     const id = this.nextId++;
     const p = {
       id, ws, name: "Player_" + (1000 + Math.floor(Math.random() * 9000)), hue: Math.floor(Math.random() * 360),
-      x: SPAWN.x + (Math.random() - 0.5) * 140, y: SPAWN.y + 20 + Math.random() * 60, tx: null, ty: null,
+      x: SPAWN.x + (Math.random() - 0.5) * 100, y: SPAWN.y + 10 + Math.random() * 40, tx: null, ty: null,
       target: null, hp: 10, max: 10, lvl: 1, xp: 0, kills: 0, lastHit: 0, lastHurt: 0, lastRegen: 0,
       deadUntil: 0, lastSay: 0, named: false, wear: [-1, -1, -1, -1, -1], look: [0, 0, 0, 0], combo: 0, bucket: 0, bucketAt: Date.now(),
       acct: null, keyHash: null, ipTag, emote: -1, emoteAt: 0, lastEmote: 0, lastRename: 0, loading: false,
@@ -366,7 +367,9 @@ export class World extends DurableObject {
     // Finished items: earned by long goals, never dropped
     const s = this.statsOf(a);
     for (const [id, g] of Object.entries(GOALS)) {
-      if (a.seen.includes(id) || (s[g.k] || 0) < g.n) continue;
+      a.goals = a.goals || {};
+      if (a.goals[id] || a.bag[id] > 0 || (s[g.k] || 0) < g.n) continue;
+      a.goals[id] = 1; // once per account, ever (this check runs on every title check)
       this.grant(p, ITEMS.findIndex((it) => it.id === id), p, "goal");
     }
     let fresh = false;
@@ -558,7 +561,7 @@ export class World extends DurableObject {
     let hit = 0;
     for (const t of [...this.slimes.values()]) {
       if (dist(p, t) > t.r + 80 + 8 * this.sk(p, "spin") + this.g(p).spin) continue;
-      t.hp -= dmg; t.hitters.add(p.id); t.dmgBy.set(p.id, (t.dmgBy.get(p.id) || 0) + dmg); t.lastBy = p.id; hit++;
+      t.hp -= dmg; t.hitters.add(p.id); t.dmgBy.set(p.id, (t.dmgBy.get(p.id) || 0) + dmg); t.lastBy = p.id; t.lastHitAt = now; hit++;
       this.events.push({ e: "hit", by: p.id, id: t.id, dmg, crit: false, combo: p.combo });
       if (t.hp <= 0) this.kill(t);
     }
@@ -579,6 +582,7 @@ export class World extends DurableObject {
       this.sendMe(p);
       return;
     }
+    if (a.quest && QUESTS[a.quest.i].k === "fence" && this.fence.openUntil > Date.now()) { a.quest = null; this.tell(p, { t: "err", text: "NPC_02: The fence is gone for good, so that quest is cancelled. Here's a new one." }); }
     if (a.quest) return this.tell(p, { t: "err", text: "You already have a quest. Check 🎨 Me for progress." });
 
     const choices = QUESTS.map((q, i) => i).filter((i) => {
@@ -661,7 +665,7 @@ export class World extends DurableObject {
     for (const p of this.players.values()) {
       if (p.deadUntil) {
         if (now >= p.deadUntil) {
-          p.deadUntil = 0; p.hp = p.max; p.x = SPAWN.x + (Math.random() - 0.5) * 140; p.y = SPAWN.y + 20 + Math.random() * 60; p.tx = p.ty = null; p.target = null;
+          p.deadUntil = 0; p.hp = p.max; p.x = SPAWN.x + (Math.random() - 0.5) * 100; p.y = SPAWN.y + 10 + Math.random() * 40; p.tx = p.ty = null; p.target = null;
         }
         continue;
       }
@@ -684,11 +688,13 @@ export class World extends DurableObject {
           // no fighting from inside the tutorial circle: slimes can't bite you there, so you can't hit them either
           if (dist(p, SPAWN) < SAFE) { gx = t.x; gy = t.y; } // keep walking out of the circle toward it, then swing
           else if (now - p.lastHit >= swingMs(this.sk(p, "swing")) - this.g(p).quick) {
+            const swing = swingMs(this.sk(p, "swing")) - this.g(p).quick;
             // keep swinging without a break to build a combo; every 5th hit in a combo is a crit
             const tid = t.fence ? "fence" : t.id;
             p.combo = now - p.lastHit < 2500 && (p.comboOn === tid || p.comboFree) ? p.combo + 1 : 1;
             p.comboOn = tid; p.comboFree = false;
-            p.lastHit = now;
+            // carry the leftover time so swing speed isn't rounded to the 100ms server tick
+            p.lastHit = now - p.lastHit < swing + 100 ? p.lastHit + swing : now;
             const counter = p.counterUntil > now; if (counter) p.counterUntil = 0;
             const G = this.g(p), crit = counter || p.combo % 5 === 0 || Math.random() < 0.08 + G.crit;
             const base = 1 + Math.floor((p.lvl - 1) / 2), dmg = counter ? Math.round(base * 3 * (1 + 0.3 * this.sk(p, "counter"))) : base * (crit ? 2 : 1);
@@ -763,14 +769,14 @@ export class World extends DurableObject {
         const small = s.kind === TODO, sq = s.kind === BOSS, R = small ? 60 : sq ? 85 : 105, hurt = small || sq ? 2 : 3;
         if (!s.slam && now >= s.slamAt) {
           let tgt = null, td = small ? 260 : 420;
-          for (const p of alive) { if (p.deadUntil) continue; const d = dist(p, s); if (d < td) { td = d; tgt = p; } }
+          for (const p of alive) { if (p.deadUntil || dist(p, SPAWN) < SAFE + 60) continue; const d = dist(p, s); if (d < td) { td = d; tgt = p; } }
           if (tgt) {
             s.slam = { x: Math.round(tgt.x), y: Math.round(tgt.y), at: now + (small ? 900 : 1300) };
             this.events.push({ e: "tele", x: s.slam.x, y: s.slam.y, r: R, ms: small ? 900 : 1300, sq: sq ? 1 : 0 });
             // every third glitch, MISSING_TEXTURE "loads" a ring of half-rendered slimes around itself
             if (sq && ++s.slams % 3 === 0) {
               for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; const c = this.spawnSlime(false, false, Math.floor(Math.random() * SLIME_NAMES.length), { x: s.x + Math.cos(a) * 90, y: s.y + Math.sin(a) * 90 }); c.hp = c.max = 2; }
-              this.events.push({ e: "sys", text: "MISSING_TEXTURE is loading assets. Four of them loaded halfway." });
+              if (s.slams === 3) this.events.push({ e: "sys", text: "MISSING_TEXTURE is loading assets. Four of them loaded halfway." });
             }
           }
           s.slamAt = now + (small ? 3500 + Math.random() * 2500 : sq ? 3200 : 3800);
@@ -793,7 +799,8 @@ export class World extends DurableObject {
         s.x = clamp(s.x + s.vx * dt, lo, hi); s.y = clamp(s.y + s.vy * dt, 30, H - 30);
       }
       // the spawn circle is a safe zone: slimes respect the tutorial
-      const sd = Math.hypot(s.x - SPAWN.x, s.y - SPAWN.y), keep = SAFE + s.r;
+      // bosses are leashed well away from the respawn plaza so people who just died aren't slammed again
+      const sd = Math.hypot(s.x - SPAWN.x, s.y - SPAWN.y), keep = (isBoss(s.kind) ? BOSS_LEASH : SAFE + 24) + s.r;
       if (sd < keep) { const k = keep / (sd || 1); s.x = SPAWN.x + (s.x - SPAWN.x) * k; s.y = SPAWN.y + (s.y - SPAWN.y) * k; }
       // biting: a slime squashes and flashes for about half a second first. Step out of reach and it misses,
       // and your next hit is a guaranteed counter crit (your combo stays alive).
@@ -811,7 +818,7 @@ export class World extends DurableObject {
               if (q.hp <= 0) { q.hp = 0; q.deadUntil = now + 3000; q.target = null; this.events.push({ e: "die", id: q.id }); this.stat(q, "deaths", 1); }
             }
             this.events.push({ e: "pound", id: s.id, r: aoe });
-            if (p && !hitTarget && !p.deadUntil) { p.counterUntil = now + this.g(p).counter; this.stat(p, "dodges", 1); this.events.push({ e: "dodge", id: p.id, sid: s.id }); }
+            if (p && !hitTarget && !p.deadUntil && dist(p, SPAWN) >= SAFE) { p.counterUntil = now + this.g(p).counter; this.stat(p, "dodges", 1); this.events.push({ e: "dodge", id: p.id, sid: s.id }); }
           } else if (p && !p.deadUntil && dist(p, SPAWN) >= SAFE && dist(p, s) < s.r + 24) {
             p.hp -= s.dmg; p.lastHurt = now; p.combo = 0;
             this.events.push({ e: "ow", id: p.id, dmg: s.dmg });
@@ -819,7 +826,7 @@ export class World extends DurableObject {
               p.hp = 0; p.deadUntil = now + 3000; p.target = null;
               this.events.push({ e: "die", id: p.id }); this.stat(p, "deaths", 1);
             }
-          } else if (p && !p.deadUntil) {
+          } else if (p && !p.deadUntil && dist(p, SPAWN) >= SAFE) { // hiding in the safe circle isn't a dodge
             p.counterUntil = now + this.g(p).counter; this.stat(p, "dodges", 1);
             this.events.push({ e: "dodge", id: p.id, sid: s.id });
           }
@@ -857,7 +864,7 @@ export class World extends DurableObject {
     for (const pid of s.hitters) {
       if (!earned(pid)) continue;
       const a = this.players.get(pid) && this.players.get(pid).acct; if (!a) continue;
-      if (!this.players.get(pid).bot) this.active.set(this.players.get(pid).keyHash, Date.now());
+      if (!this.players.get(pid).bot && (a.stats.kills || 0) >= BAR_MIN_KILLS) this.active.set(this.players.get(pid).keyHash, Date.now());
       if (!a.dk || a.dk.d !== today) a.dk = { d: today, k: 0 };
       if (++a.dk.k === DAY_KILLS) { a.stats.days = (a.stats.days || 0) + 1; }
     }
@@ -899,7 +906,11 @@ export class World extends DurableObject {
       this.patchKills = 0; this.patch++; this.patchBy = {}; this.patchNames = {};
       // banked kills from players whose share was full move into the new patch (still capped by its share)
       const ns = this.shareOf(this.patch);
-      for (const [k, v] of Object.entries(this.patchNext)) { const c = Math.min(v, ns); this.patchBy[k] = c; this.patchKills += c; }
+      for (const [k, v] of Object.entries(this.patchNext)) {
+        const c = Math.min(v, ns); this.patchBy[k] = c; this.patchKills += c;
+        // banked kills count as helping ship this patch too
+        for (const q of this.players.values()) if (q.acct && q.keyHash === k) { q.acct.pk = { p: this.patch, k: c, need: Math.ceil(ns / 2) }; q.dirty = true; }
+      }
       this.patchNext = {};
       const note = PATCHES[n] ? PATCHES[n].note : HOTFIX_NOTES[(n - PATCHES.length) % HOTFIX_NOTES.length];
       if (!PATCHES[n] && !this.event) { this.event = { kind: "hotfix", until: Date.now() + 300000 }; this.events.push({ e: "event", kind: "hotfix", ms: 300000 }); }
