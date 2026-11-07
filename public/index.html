@@ -34,6 +34,14 @@
   #toast { position:fixed; left:50%; top:30%; transform:translate(-50%,-50%); text-align:center; font-weight:800; font-size:22px; text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.6); pointer-events:none; opacity:0; transition:opacity .3s; width:min(90%,520px); }
   #pb.bump { animation:bump .25s; } @keyframes bump { 50% { transform:scaleY(1.9); filter:brightness(1.6); } }
   #mypart { font-size:12px; opacity:.85; margin-top:3px; color:#bfe3ff; }
+  #deploy { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(10,12,20,.45); z-index:40; pointer-events:none; }
+  #deploy.on { display:flex; } #deploy .dbox { background:#141824; color:#fff; border:3px solid #ffd34d; border-radius:16px; padding:18px 26px; text-align:center; width:min(420px, 86vw); box-shadow:0 10px 40px rgba(0,0,0,.5); }
+  #dtitle { font:800 18px system-ui; letter-spacing:1px; } #dcount { font:900 64px system-ui; color:#ffd34d; line-height:1.1; } #dsub { font:600 12px system-ui; opacity:.75; margin-top:8px; }
+  .dbar { height:12px; background:#2a3042; border-radius:6px; overflow:hidden; margin-top:6px; } #dfill { height:100%; width:0; background:linear-gradient(90deg,#ffd34d,#7fe8ff); }
+  #whatsnew { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(10,12,20,.35); z-index:41; }
+  #whatsnew.on { display:flex; } #whatsnew .wbox { color:#222; background:#fffbea; border:3px solid #ffd34d; border-radius:16px; padding:18px 20px; width:min(440px, 88vw); box-shadow:0 10px 40px rgba(0,0,0,.4); }
+  #wtitle { font:900 22px system-ui; } #wnote { font:600 15px system-ui; margin:10px 0; line-height:1.35; } #wpart { font:600 13px system-ui; color:#6b5a1d; }
+  .wbtns { display:flex; gap:10px; margin-top:14px; } .wbtns button { flex:1; font:800 15px system-ui; padding:10px; border-radius:10px; border:2px solid #222; background:#fff; } #wgo { background:#ffd34d; }
   #credits { position:fixed; left:0; right:0; top:0; height:40%; pointer-events:none; display:none; overflow:hidden; -webkit-mask-image:linear-gradient(#000 75%, transparent); mask-image:linear-gradient(#000 75%, transparent); }
   #credits.on { display:block; }
   #credroll { position:absolute; left:50%; transform:translateX(-50%); top:100%; text-align:center; font-weight:800; font-size:16px; line-height:1.5; text-shadow:0 2px 0 #000,0 0 10px rgba(0,0,0,.8); width:min(90%,420px); animation:roll 7s linear forwards; }
@@ -136,6 +144,8 @@
 </div>
 <div id="world" class="hud"><div><b id="on">0</b> online</div><div><b id="tot">0</b> slimes killed by everyone</div><div id="a2" style="display:none;color:#ff7bf0;font-weight:800"></div><div id="evt" style="display:none;color:#ffd34d;font-weight:800"></div><div id="pt">Next patch</div><div class="bar" id="pb"><i></i></div><div id="mypart"></div></div>
 <div id="credits"><div id="credroll"></div></div>
+<div id="deploy"><div class="dbox"><div id="dtitle">DEPLOYING PATCH</div><div id="dcount">5</div><div class="dbar"><div id="dfill"></div></div><div id="dsub">Everyone stop. Don't touch anything. It's deploying.</div></div></div>
+<div id="whatsnew"><div class="wbox"><div id="wtitle"></div><div id="wnote"></div><div id="wpart"></div><div class="wbtns"><button id="wgo">Go see it →</button><button id="wok">Keep playing</button></div></div></div>
 <div id="log"></div>
 <div id="bar">
   <button id="say">💬 Chat</button>
@@ -380,12 +390,35 @@ function showCredits(e) {
   const h = document.createElement('h3'); h.textContent = e.launch ? 'VERSION 1.0' : 'PATCH ' + e.name + ' SHIPPED'; roll.append(h);
   const nt = document.createElement('div'); nt.style.cssText = 'font-size:14px;font-weight:600;margin-bottom:10px'; nt.textContent = e.note + (e.art ? ' ' + e.art : ''); roll.append(nt);
   const sub = document.createElement('div'); sub.textContent = e.helpers ? `Made by ${e.helpers} ${e.helpers === 1 ? 'person' : 'people'}. Thanks to:` : 'Thanks to: nobody, apparently.'; roll.append(sub);
-  for (const [n, c] of (e.credits || []).slice(0, 8)) { const d = document.createElement('div'); d.textContent = e.launch ? n : `${n} · ${c} kills`; roll.append(d); }
+  for (const [n, c] of (e.credits || []).slice(0, 8)) { const d = document.createElement('div'); d.textContent = e.launch ? n : `${n} · ${c} helped`; roll.append(d); }
   const dn = document.createElement('small'); dn.textContent = 'DEV NOTE: ' + DEV_NOTES[(e.n - 1) % DEV_NOTES.length]; roll.append(dn);
   if (e.art) { const mu = document.createElement('small'); mu.textContent = 'Music: one more layer got finished. Listen.'; roll.append(mu); }
   const sm = document.createElement('small'); sm.textContent = 'Bench legs: not included. Lighting: TODO.'; roll.append(sm);
   $('credits').classList.remove('on'); void roll.offsetWidth; roll.style.animation = 'none'; void roll.offsetWidth; roll.style.animation = ''; $('credits').classList.add('on');
   clearTimeout(showCredits.t); showCredits.t = setTimeout(() => $('credits').classList.remove('on'), 7200);
+}
+function startDeploy(e) {
+  const t0 = performance.now(); $('dtitle').textContent = 'DEPLOYING PATCH ' + e.name; $('deploy').classList.add('on'); sfx('warn');
+  clearInterval(startDeploy.iv); let last = -1;
+  startDeploy.iv = setInterval(() => {
+    const k = Math.min(1, (performance.now() - t0) / e.ms), left = Math.ceil((1 - k) * e.ms / 1000);
+    $('dfill').style.width = (100 * k) + '%'; $('dcount').textContent = left > 0 ? left : '✓';
+    if (left !== last) { last = left; if (left > 0) sfx('click'); $('dcount').animate([{ transform: 'scale(1.4)' }, { transform: 'scale(1)' }], { duration: 250 }); }
+    if (k >= 1) clearInterval(startDeploy.iv);
+  }, 50);
+}
+let goArrow = null; // { x, y, until, label }: points you at what a patch just added
+function showWhatsNew(e, pz) {
+  const P = PATCHES[e.n - 1];
+  $('wtitle').textContent = e.launch ? '🎉 VERSION 1.0 SHIPPED' : `🎉 PATCH ${e.name} SHIPPED`;
+  $('wnote').textContent = (P ? P.note : e.note) + (pz ? ` And ${pz.name} is finally painted.` : '');
+  const mine = (e.credits || []).find((c) => c[0] === myName);
+  $('wpart').textContent = mine ? `You helped: ${mine[1]} contributions. Your name is in the credits.` : `${e.helpers || 0} ${e.helpers === 1 ? 'person' : 'people'} built this one.`;
+  const tgt = P && P.x != null ? { x: P.x, y: P.y, label: P.title || P.tease } : pz ? { x: pz.x + pz.w / 2, y: pz.y + pz.h / 2, label: pz.name } : null;
+  $('wgo').style.display = tgt ? '' : 'none';
+  $('wgo').onclick = () => { sfx('click'); $('whatsnew').classList.remove('on'); if (tgt) goArrow = { ...tgt, until: performance.now() + 20000 }; };
+  $('wok').onclick = () => { sfx('click'); $('whatsnew').classList.remove('on'); };
+  $('whatsnew').classList.add('on'); sfx('title');
 }
 function nameOf(id) { const p = snapB && snapB.p.get(id); return p ? p.name : 'someone'; }
 function onEvent(e) {
@@ -466,7 +499,8 @@ function onEvent(e) {
   else if (e.e === 'finished') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 180, c: '#ffd700', t: now, life: 900 }); for (let i = 0; i < 60; i++) fx.push({ x: p2.x, y: p2.y, vx: (Math.random() - .5) * 600, vy: (Math.random() - .8) * 600, dot: true, sz: 5, c: '#ffd700', t: now, life: 1200 }); } if (e.id !== myId) toast('SOMEONE FINISHED SOMETHING', `${nameOf(e.id)} earned ${ITEMS[e.item].name}${e.n ? ' (#' + e.n + ' ever)' : ''}. Go look.`); }
   else if (e.e === 'spin') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 110, c: '#ffffff', t: now, life: 350 }); if (e.id === myId) { sfx('crit'); shake(e.hit ? 6 : 2); } } }
   else if (e.e === 'event') { toast(e.kind === 'rain' ? 'WORLD EVENT: SLIME RAIN' : e.kind === 'hotfix' ? 'HOTFIX DEPLOYED' : 'WORLD EVENT: BUG BOUNTY', e.kind === 'rain' ? 'A spawn loop is stuck. Double loot for 45 seconds.' : e.kind === 'hotfix' ? 'Double loot for 5 minutes while the devs look the other way.' : 'THE BUG is loose. Hit it before it escapes to production.'); sfx('fanfare'); shake(6); }
-  else if (e.e === 'patch') { const pz = ZONES.find((z) => z.at === e.n); if (e.plaque) plaques[e.n - 1] = e.plaque; myPart = null; setTimeout(() => send({ t: 'me' }), 400); if (pz) { paintWipe = { z: pz, t: now + 700 }; camFly = { x: pz.x + pz.w / 2, y: pz.y + pz.h / 2, t: now }; for (let i = 0; i < 80; i++) fx.push({ x: pz.x + Math.random() * pz.w, y: pz.y + Math.random() * pz.h, vx: 0, vy: -40, dot: true, sz: 4, c: ['#fff3a6', '#ffb3d9', '#b8e0ff', '#7fd06f'][i % 4], t: now + Math.random() * 1400, life: 900 }); }
+  else if (e.e === 'deploy') { startDeploy(e); }
+  else if (e.e === 'patch') { $('deploy').classList.remove('on'); clearInterval(startDeploy.iv); const pz = ZONES.find((z) => z.at === e.n); setTimeout(() => showWhatsNew(e, pz), pz ? 5600 : 1500); if (e.plaque) plaques[e.n - 1] = e.plaque; myPart = null; setTimeout(() => send({ t: 'me' }), 400); if (pz) { paintWipe = { z: pz, t: now + 1200 }; camFly = { x: pz.x + pz.w / 2, y: pz.y + pz.h / 2, t: now }; for (let i = 0; i < 80; i++) fx.push({ x: pz.x + Math.random() * pz.w, y: pz.y + Math.random() * pz.h, vx: 0, vy: -40, dot: true, sz: 4, c: ['#fff3a6', '#ffb3d9', '#b8e0ff', '#7fd06f'][i % 4], t: now + Math.random() * 1400, life: 900 }); }
     e.art = pz ? `Art pass: ${pz.name} is now painted.` : e.n === A2_PAINT_AT ? 'Art pass: Area 2 is painted.' : ''; showCredits(e); sfx('fanfare'); if (e.launch) { shake(16); setTimeout(() => sfx('fanfare'), 600); } }
   else if (e.e === 'die' && e.id === myId) { toast('YOU DIED', 'Respawning at the only spawn point.'); sfx('die'); shake(10); }
 }
@@ -923,7 +957,7 @@ function camera() {
   let me = interp('p', myId) || (myId == null ? { x: 1000 + Math.sin(performance.now() / 9000) * 600, y: 600 + Math.cos(performance.now() / 13000) * 250 } : SPAWN);
   if (camFly) {
     // a patch just shipped: fly to the zone being painted, watch it, fly back
-    const k = (performance.now() - camFly.t) / 3200;
+    const k = (performance.now() - camFly.t) / 5400;
     if (k >= 1) camFly = null;
     else { const e = k < 0.25 ? k / 0.25 : k > 0.75 ? (1 - k) / 0.25 : 1, ee = e * e * (3 - 2 * e); me = { x: me.x + (camFly.x - me.x) * ee, y: me.y + (camFly.y - me.y) * ee }; }
   }
@@ -1200,7 +1234,7 @@ function drawWorld(now) {
   cx.fillStyle = '#c9b27c'; cx.beginPath(); cx.arc(SPAWN.x, SPAWN.y, 110, 0, 7); cx.fill(); cx.fillRect(SPAWN.x, SPAWN.y - 4, FENCE_X - SPAWN.x, 48);
   for (const f of FLOWERS) { if (f.x > FENCE_X - 4) continue; cx.fillStyle = f.c; cx.fillRect(f.x, f.y, 3, 3); }
   for (const z of ZONES) {
-    const wiping = paintWipe && paintWipe.z === z, k = wiping ? Math.max(0, Math.min(1, (now - paintWipe.t) / 1600)) : 1;
+    const wiping = paintWipe && paintWipe.z === z, k = wiping ? Math.max(0, Math.min(1, (now - paintWipe.t) / 3200)) : 1;
     if (!zonePainted(z)) {
       cx.font = '900 30px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.10)'; cx.fillText('ART: TODO', z.x + z.w / 2, z.y + z.h / 2 - 8);
       cx.font = '700 14px ui-monospace,Consolas,monospace'; cx.fillText(`(painted in patch ${patchName(z.at - 1)})`, z.x + z.w / 2, z.y + z.h / 2 + 14);
@@ -1345,6 +1379,14 @@ function frame() {
   // counter ready: a cyan ring around you until your next hit
   if (me && counterOn && now - counterOn < 3000) { cx.strokeStyle = `rgba(127,232,255,${0.6 + 0.4 * Math.sin(now / 80)})`; cx.lineWidth = 3; cx.beginPath(); cx.arc(me.x, me.y, 26, 0, 7); cx.stroke(); }
   if (me && dodgeHint && now - dodgeHint < 1600) bubble(me.x, me.y - 48, "It's about to bite! Tap 💨 Dash (or step away), then hit back for a COUNTER.", '#d9f6ff');
+  if (me && goArrow && now < goArrow.until) {
+    const d = Math.hypot(goArrow.x - me.x, goArrow.y - me.y);
+    if (d < 60) goArrow = null;
+    else { const a = Math.atan2(goArrow.y - me.y, goArrow.x - me.x), r0 = 34, r1 = Math.min(d - 10, 120), pulse = (Math.sin(now / 150) + 1) / 2;
+      cx.save(); cx.translate(me.x, me.y); cx.rotate(a); cx.strokeStyle = '#ffd34d'; cx.lineWidth = 4; cx.setLineDash([8, 6]); cx.beginPath(); cx.moveTo(r0, 0); cx.lineTo(r1, 0); cx.stroke(); cx.setLineDash([]);
+      cx.fillStyle = '#ffd34d'; cx.beginPath(); cx.moveTo(r1 + 14 + pulse * 4, 0); cx.lineTo(r1, -9); cx.lineTo(r1, 9); cx.closePath(); cx.fill(); cx.restore();
+      bubble(me.x + Math.cos(a) * 150, me.y + Math.sin(a) * 150 - 24, 'New: ' + goArrow.label + ' →', '#fff5cc'); }
+  }
   if (now - (frame.actAt || 0) > 250) { frame.actAt = now; updateActions(); }
   const draw = [];
   if (snapB) {

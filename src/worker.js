@@ -140,7 +140,7 @@ export class World extends DurableObject {
     };
     this.players.set(id, p);
     ws.send(JSON.stringify({ t: "you", id, total: this.total, w: W, h: H, plaques: this.plaques }));
-    if (this.solo) ws.send(JSON.stringify({ t: "err", text: "SOLO TEST MODE (your PC only): you can ship patches alone, and each kill moves the bar 3. The real game still needs a crowd." }));
+    if (this.solo) ws.send(JSON.stringify({ t: "err", text: "SOLO TEST MODE (your PC only): you can ship patches alone. The real game needs 3+ people per patch." }));
     // a socket that never says hi doesn't get to hold a slot
     setTimeout(() => { if (this.players.get(id) === p && !p.named && !p.loading) { try { ws.close(4001, "no hi"); } catch {} this.leave(p); } }, 10000);
     ws.addEventListener("message", (ev) => this.onMsg(p, ev.data));
@@ -550,7 +550,7 @@ export class World extends DurableObject {
     for (const k of ["poly", "vert"]) {
       const room = Math.min(sh[k] - mine[k], g[k] - this.patchRes[k]), give = Math.min(room, a.res[k] || 0);
       if (give <= 0) continue;
-      a.res[k] -= give; mine[k] += give; this.patchRes[k] += give * (this.solo ? 3 : 1); moved += give;
+      a.res[k] -= give; mine[k] += give; this.patchRes[k] += give; moved += give;
     }
     if (!moved) { if (Object.keys(this.resBy[p.keyHash]).every((k) => !this.resBy[p.keyHash][k])) delete this.resBy[p.keyHash]; return; }
     this.patchNames[p.keyHash] = p.name; this.dirty = true; p.dirty = true;
@@ -630,7 +630,7 @@ export class World extends DurableObject {
 
   // spin attack: hit everything nearby, on a cooldown
   spin(p, now) {
-    if (p.deadUntil || dist(p, SPAWN) < SAFE || now - (p.lastSpin || 0) < spinCd(this.sk(p, "spin"))) return;
+    if (p.deadUntil || this.shipAt || dist(p, SPAWN) < SAFE || now - (p.lastSpin || 0) < spinCd(this.sk(p, "spin"))) return;
     p.lastSpin = now;
     const dmg = dmgAt(p.lvl);
     let hit = 0;
@@ -730,6 +730,7 @@ export class World extends DurableObject {
     this.worldEvents(now);
     if (this.patch === LAUNCH && this.patchKills >= patchGoal(LAUNCH) && this.resDone() && now >= (this.releaseAt || 0) && this.humans() > 0 && ![...this.slimes.values()].some((sl) => sl.kind === RELEASE)) { this.releaseAt = now + 600000; this.spawnSlime(true, false, RELEASE); }
     this.botBrains(now);
+    if (this.shipAt && now >= this.shipAt) { this.shipAt = 0; this.doShip(); }
     for (let i = 0; i < NODES.length; i++) if (this.nodeHp[i] <= 0 && now >= this.nodeBack[i]) { this.nodeHp[i] = NODE_HP[NODES[i].tier]; this.events.push({ e: "node", id: i, on: 1 }); }
     const f = this.fence;
     if (f.openUntil) {
@@ -774,7 +775,7 @@ export class World extends DurableObject {
           gx = null;
           // no fighting from inside the tutorial circle: slimes can't bite you there, so you can't hit them either
           if (dist(p, SPAWN) < SAFE) { gx = t.x; gy = t.y; } // keep walking out of the circle toward it, then swing
-          else if (now - p.lastHit >= swingMs(this.sk(p, "swing")) - this.g(p).quick) {
+          else if (!this.shipAt && now - p.lastHit >= swingMs(this.sk(p, "swing")) - this.g(p).quick) {
             const swing = swingMs(this.sk(p, "swing")) - this.g(p).quick;
             // keep swinging without a break to build a combo; every 5th hit in a combo is a crit
             const tid = t.fence ? "fence" : t.id;
@@ -819,6 +820,7 @@ export class World extends DurableObject {
 
     // slimes
     for (const s of this.slimes.values()) {
+      if (this.shipAt) { s.wind = null; continue; } // everything holds still while a patch deploys
       if (s.wind) { s.hopEnd = 0; s.hopAt = Math.max(s.hopAt, now + 300); } // winding up a bite: it holds still
       else if (now >= s.hopAt) {
         const K = kindOf(s.kind);
@@ -966,7 +968,7 @@ export class World extends DurableObject {
         if ((p.acct.stats.kills || 0) < BAR_MIN_KILLS) { warm = warm || p; continue; }
         const c = this.patchBy[p.keyHash] || 0;
         if (c >= share) { capped = capped || p; continue; }
-        this.patchBy[p.keyHash] = c + 1; this.patchKills += this.solo ? 3 : 1; credited = true; this.patchNames[p.keyHash] = p.name; // test mode: each kill moves the bar 3
+        this.patchBy[p.keyHash] = c + 1; this.patchKills++; credited = true; this.patchNames[p.keyHash] = p.name; // test mode: each kill moves the bar 3
         if (!p.acct.pk || p.acct.pk.p !== this.patch) p.acct.pk = { p: this.patch, k: 0, need: Math.ceil(share / 2) };
         p.acct.pk.k++;
         this.tell(p, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), mine: c + 1, share });
@@ -993,8 +995,16 @@ export class World extends DurableObject {
 
   // a patch ships when its kills AND its materials are all in
   tryShip() {
-    const goal = patchGoal(this.patch);
-    if (this.patchKills >= goal && this.resDone() && this.patch !== LAUNCH) {
+    if (this.shipAt) return;
+    if (this.patchKills >= patchGoal(this.patch) && this.resDone() && this.patch !== LAUNCH) {
+      // patch day: a 5 second countdown where the whole server stops to watch it deploy
+      this.shipAt = Date.now() + 5000;
+      this.events.push({ e: "deploy", name: patchName(this.patch), ms: 5000 });
+    }
+  }
+
+  doShip() {
+    {
       const n = this.patch;
       const score = { ...this.patchBy };
       for (const [k, v] of Object.entries(this.resBy)) score[k] = (score[k] || 0) + (v.poly || 0) + (v.vert || 0);
