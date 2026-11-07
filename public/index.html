@@ -56,6 +56,9 @@
   #bagp .it canvas { position:static; width:56px; height:56px; display:block; margin:0 auto 2px; }
   #bagp .it b { display:block; font-size:12px; }
   #bagp .it i { display:block; font-style:normal; font-size:11px; opacity:.7; }
+  .it.fresh { box-shadow: 0 0 0 3px #ffd34d, 0 0 14px #ffd34d; position:relative; } .it.fresh::after { content:'NEW'; position:absolute; top:4px; right:6px; background:#ffd34d; color:#222; font:800 10px system-ui; padding:1px 5px; border-radius:6px; }
+  .opt.freshT { box-shadow: 0 0 0 3px #ffd34d, 0 0 12px #ffd34d; }
+  .freshbar { background:#fff5cc; border:2px solid #ffd34d; border-radius:10px; padding:8px 10px; font-weight:700; font-size:13px; }
   .it i.fxl { color:#b8620b; opacity:1 !important; font-weight:700; }
   #bagp .close { position:sticky; top:0; float:right; height:36px; padding:0 12px; }
   #combo { position:fixed; right:12px; top:34%; text-align:right; pointer-events:none; font-weight:900; text-shadow:0 3px 0 #000, 0 0 14px rgba(0,0,0,.5); opacity:0; transition:opacity .25s; }
@@ -127,6 +130,7 @@
   <div class="name" id="nm" title="Tap to change your name">…</div>
   <div id="lv">Lv 1</div>
   <div class="coinrow">🪙 <b id="coins" style="display:inline-block">0</b> placeholder coins</div>
+  <div class="coinrow" id="matrow">▲ <b id="mpoly" style="display:inline-block">0</b> · ● <b id="mvert" style="display:inline-block">0</b> · Scavenging Lv <b id="mscav">1</b></div>
   <div class="bar" id="hp"><i></i></div>
   <div class="bar" id="xp"><i></i></div>
 </div>
@@ -177,7 +181,7 @@
   </div>
 </div>
 <script type="module">
-import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, FINDABLE, SCRAP, RAINBOW_OT, SPIN_CD, SECRETS, SKILLS, skillCost, spinCd, dashCd, LEVEL_CAP, dmgAt, FX, gearOf, UPG_MAX, upgSpares, upgCost, fxText, DEV_NOTES, LAUNCH_CROWD, patchName, OT_REWARDS } from './items.js';
+import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, FINDABLE, SCRAP, RAINBOW_OT, SPIN_CD, SECRETS, SKILLS, skillCost, spinCd, dashCd, NODES, NODE_NAMES, NODE_REQ, RES, BUILD_AT, SCAV_MAX, scavNeed, LEVEL_CAP, dmgAt, FX, gearOf, UPG_MAX, upgSpares, upgCost, fxText, DEV_NOTES, LAUNCH_CROWD, patchName, OT_REWARDS } from './items.js';
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
@@ -324,8 +328,9 @@ function connect() {
     else if (m.t === 'hof') renderHof(m);
     else if (m.t === 'secret') { coins = m.coins; $('coins').textContent = coins.toLocaleString(); toast(`HIDDEN SPOT ${m.n}/${m.of}`, SECRETS[m.i].text + ' +20 coins.'); sfx('title'); log(`You found a hidden spot (${m.n}/${m.of}).`, true); }
     else if (m.t === 'err') { toast('', m.text); log(m.text, true); }
-    else if (m.t === 'title') { if (!titlesHave.includes(m.i)) titlesHave.push(m.i); if ($('mep').classList.contains('open')) renderMe(); setTimeout(() => { toast('TITLE UNLOCKED: ' + TITLES[m.i].name, 'Tap 🎨 Me to wear it under your name.'); sfx('title'); $('mebtn').classList.add('pulse'); }, 900); }
+    else if (m.t === 'title') { if (!titlesHave.includes(m.i)) titlesHave.push(m.i); freshTitles.add(m.i); if ($('mep').classList.contains('open')) renderMe(); setTimeout(() => { toast('TITLE UNLOCKED: ' + TITLES[m.i].name, 'Tap 🎨 Me to wear it under your name.'); sfx('title'); $('mebtn').classList.add('pulse'); }, 900); }
     else if (m.t === 'bar') onBar(m);
+    else if (m.t === 'res') { onRes(m); }
     else if (m.t === 'coins') { coins = m.n; $('coins').textContent = coins.toLocaleString(); $('coins').animate([{ transform: 'scale(1.5)', color: '#ffd34d' }, { transform: 'scale(1)' }], { duration: 260 }); fx.push({ x: m.x + 34, y: m.y - 8, text: '+' + m.add + '¢', c: '#ffe36b', t: performance.now() + 250, life: 700, big: 0.75 }); }
     else if (m.t === 'qp') { if (myQuest) myQuest.have = m.have; fx.push({ x: (snapB.p.get(myId) || SPAWN).x, y: (snapB.p.get(myId) || SPAWN).y - 70, text: `quest ${m.have}/${m.n}`, c: '#bfe3ff', t: performance.now(), life: 1000, big: 0.8 }); if (m.have >= m.n) { toast('QUEST READY', 'Go back to NPC_02 to hand it in.'); sfx('title'); } }
     else if (m.t === 'kicked') { kicked = true; $('status').classList.remove('hide'); $('status').textContent = 'You opened the game somewhere else, so this tab was closed. One character, one tab. Like a real MMO.'; }
@@ -345,7 +350,9 @@ function onSnap(m) {
   snapAt = performance.now();
   total = m.total;
   if (m.fz) { const was = fence[2]; fence = m.fz; $('a2').style.display = fence[2] ? '' : 'none'; if (fence[2] >= 99999) $('a2').textContent = 'AREA 2: OPEN FOR GOOD'; else if (fence[2]) $('a2').textContent = `AREA 2 OPEN: ${Math.floor(fence[2] / 60)}:${String(fence[2] % 60).padStart(2, '0')}`; }
-  if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Tap the Shop button. Kills give coins.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch], launch = patch === PATCHES.length; $('pt').textContent = launch ? (m.pa[1] >= m.pa[2] ? `1.0 LAUNCH: beat RELEASE_CANDIDATE_1.0 with ${LAUNCH_CROWD}+ people` : `Next: 1.0 LAUNCH · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`) : `Patch ${patchName(patch)}${nx && innerWidth >= 500 ? ': ' + nx.tease : ''} · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`; $('pb').firstChild.style.width = (100 * m.pa[1] / m.pa[2]) + '%'; updateActions(); }
+  if (m.nd) deadNodes = new Set(m.nd);
+  if (m.pa && m.pa[6] && !frame.scavTold && store.get('ut_scavtold') !== '1') { frame.scavTold = true; store.set('ut_scavtold', '1'); setTimeout(() => toast('NEW JOB: SCAVENGING', 'Patches now need materials too. Tap a tree for ▲ polygons or a rock for ● vertices, then walk them to the BUILD SITE just south-east of spawn.'), 2500); }
+  if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Tap the Shop button. Kills give coins.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch], launch = patch === PATCHES.length; $('pt').textContent = launch ? (m.pa[1] >= m.pa[2] ? `1.0 LAUNCH: beat RELEASE_CANDIDATE_1.0 with ${LAUNCH_CROWD}+ people` : `Next: 1.0 LAUNCH · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`) : `Patch ${patchName(patch)}${nx && innerWidth >= 500 ? ': ' + nx.tease : ''} · ⚔ ${m.pa[1]}/${m.pa[2]}${m.pa[6] ? ` · ▲ ${m.pa[5]}/${m.pa[6]} · ● ${m.pa[7]}/${m.pa[8]}` : ''} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`; { const parts = [m.pa[1] / m.pa[2]]; if (m.pa[6]) parts.push(Math.min(1, m.pa[5] / m.pa[6]), Math.min(1, m.pa[7] / m.pa[8])); $('pb').firstChild.style.width = (100 * parts.reduce((x, y) => x + Math.min(1, y), 0) / parts.length) + '%'; } updateActions(); }
   const bots = [...snapB.p.values()].filter((q) => q.bot).length;
   $('on').textContent = m.n + (bots ? ` (+${bots} bot${bots > 1 ? 's' : ''})` : ''); $('tot').textContent = total.toLocaleString();
   for (const e of m.e) onEvent(e);
@@ -396,6 +403,15 @@ function onEvent(e) {
     if (e.id === myId) { counterOn = now; sfx('title'); stats.dodges = (stats.dodges || 0) + 1; $('dash').classList.remove('hint'); }
   }
   else if (e.e === 'stun') { const s2 = snapB.m.get(e.id); if (s2) { const w = winds.get(e.id); if (w) w.ms += 600; fx.push({ x: s2.x, y: s2.y - s2.r - 18, text: 'STUNNED', c: '#ffd34d', t: now, life: 800, big: 0.8 }); } }
+  else if (e.e === 'gat') {
+    const n = NODES[e.n], q = snapB.p.get(e.id); swings.set(e.id, now); nodeHit.set(e.n, now);
+    if (n) for (let i = 0; i < (e.ok ? 7 : 3); i++) fx.push({ x: n.x, y: n.y - 18, vx: (Math.random() - .5) * 180, vy: -60 - Math.random() * 140, dot: true, sz: 3 + Math.random() * 3, c: n.k === 'tree' ? (i % 2 ? '#3f8f3a' : '#7bc96f') : (i % 2 ? '#8a8f98' : '#c3c8d0'), t: now, life: 450 });
+    if (e.id === myId) { sfx(e.ok ? 'chop' : 'click', n && n.k === 'rock' ? 1 : 0); if (e.ok && n) fx.push({ x: n.x, y: n.y - 40, text: `+${e.gain} ${RES[e.k].icon} ${e.gain > 1 ? RES[e.k].name : RES[e.k].one}`, c: e.k === 'poly' ? '#9be37f' : '#d6dbe3', t: now, life: 900, big: 1 }); else if (n) fx.push({ x: n.x, y: n.y - 40, text: 'miss', c: '#bbb', t: now, life: 500, big: 0.7 }); }
+  }
+  else if (e.e === 'node') { if (e.on) deadNodes.delete(e.id); else { deadNodes.add(e.id); const n = NODES[e.id]; if (n) for (let i = 0; i < 16; i++) fx.push({ x: n.x, y: n.y - 20, vx: (Math.random() - .5) * 300, vy: -Math.random() * 260, dot: true, sz: 4, c: n.k === 'tree' ? '#3f8f3a' : '#9aa0a8', t: now, life: 600 }); } }
+  else if (e.e === 'slvl' && e.id === myId) { sfx('lvl'); toast('SCAVENGING LEVEL ' + e.lvl + '!', NODE_REQ.includes(e.lvl) ? `You can now gather the ${e.lvl === NODE_REQ[1] ? 'middle ring' : 'far ring'} trees and rocks. They give more.` : 'You swing a little faster and miss a little less.'); }
+  else if (e.e === 'slvl') log(`${nameOf(e.id)} reached Scavenging level ${e.lvl}.`, true);
+  else if (e.e === 'deliver') { fx.push({ x: BUILD_AT.x, y: BUILD_AT.y - 50, text: `+${e.n} delivered`, c: '#ffd34d', t: now, life: 1200, big: e.id === myId ? 1.2 : 0.8 }); for (let i = 0; i < 14; i++) fx.push({ x: BUILD_AT.x, y: BUILD_AT.y - 10, vx: (Math.random() - .5) * 200, vy: -80 - Math.random() * 200, dot: true, sz: 4, c: i % 2 ? '#9be37f' : '#d6dbe3', t: now, life: 600 }); if (e.id === myId) { sfx('loot', 1); $('pb').animate([{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 300 }); } }
   else if (e.e === 'beam') { beams.push({ x: e.x, y: e.y, c: RARITY[e.r].color, t: now }); if (near(e)) sfx('loot', 1); }
   else if (e.e === 'hit') {
     swings.set(e.by, now); slimeHit.set(e.id, now); winds.delete(e.id);
@@ -475,7 +491,7 @@ function sendHi() { send({ t: 'hi', key: myKey || undefined, name: myName, hue: 
 function onMe(m) {
   gotMe = true;
   myName = m.name; store.set('ut_name', myName); myHue = m.hue; store.set('ut_hue', myHue); look = m.look; store.set('ut_look', JSON.stringify(look));
-  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest; seen = m.seen || []; mySk = m.sk || {}; myUp = m.up || {}; if ($('shopp').classList.contains('open') && $('shoph').textContent.startsWith('SHOP')) renderShop(); if (m.share && !(myPart && myPart.banked != null)) { myPart = { mine: m.shipk || 0, share: m.share }; setPart(); }
+  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest; seen = m.seen || []; mySk = m.sk || {}; myUp = m.up || {}; onRes(m); if ($('shopp').classList.contains('open') && $('shoph').textContent.startsWith('SHOP')) renderShop(); if (m.share && !(myPart && myPart.banked != null)) { myPart = { mine: m.shipk || 0, share: m.share }; setPart(); }
   $('coins').textContent = coins.toLocaleString();
   if ($('bagp').classList.contains('open')) renderBag();
   if ($('mep').classList.contains('open')) renderMe();
@@ -500,9 +516,56 @@ function onLoot(i, lx, ly, from, why) {
     setTimeout(() => { const m2 = snapB && snapB.p.get(myId); if (!m2) return; for (let k = 0; k < 10 + it.r * 12; k++) fx.push({ x: m2.x, y: m2.y - 40, vx: (Math.random() - .5) * 260, vy: (Math.random() - .9) * 260, dot: true, sz: 3 + Math.random() * 3, c: rar.color, t: performance.now(), life: 800 }); if (it.r >= 2) shake(it.r === 4 ? 14 : 6); }, 700);
   }
   sfx('loot', Math.min(3, it.r)); if (it.r === 4) setTimeout(() => sfx('fanfare'), 500);
-  if (n === 1) $('bag').classList.add('new');
+  if (n === 1) { $('bag').classList.add('new'); freshItems.add(it.id); }
   if ($('bagp').classList.contains('open')) renderBag();
 }
+const freshItems = new Set(), freshTitles = new Set();
+// ---------- scavenging ----------
+let deadNodes = new Set(), myRes = {}, myScav = { lvl: 1, xp: 0 }, myGather = null, resGiven = {}, resShare = {};
+const nodeHit = new Map();
+function onRes(m) {
+  if (m.res) myRes = m.res; if (m.scav) myScav = m.scav;
+  if (m.resGiven || m.given) resGiven = m.resGiven || m.given; if (m.resShare || m.share && m.share.poly != null) resShare = m.resShare || m.share;
+  const bump = (id, v) => { const el = $(id); if (el.textContent !== String(v)) { el.textContent = v; el.animate([{ transform: 'scale(1.5)' }, { transform: 'scale(1)' }], { duration: 240 }); } };
+  bump('mpoly', myRes.poly || 0); bump('mvert', myRes.vert || 0); $('mscav').textContent = myScav.lvl;
+}
+function nodeAt(x, y) { let best = null, bd = 30; for (const n of NODES) { const d = Math.hypot(n.x - x, n.y - 14 - y); if (d < bd) { bd = d; best = n; } } return best; }
+function drawNode(n, now) {
+  const dead = deadNodes.has(n.id), ht = now - (nodeHit.get(n.id) || -1e9), sh = ht < 150 ? Math.sin(ht / 15) * 3 * (1 - ht / 150) : 0;
+  cx.save(); cx.translate(n.x + sh, n.y);
+  cx.fillStyle = 'rgba(0,0,0,.18)'; cx.beginPath(); cx.ellipse(0, 2, 16, 5, 0, 0, 7); cx.fill();
+  if (n.k === 'tree') {
+    if (dead) { cx.fillStyle = '#8a6a3d'; cx.fillRect(-5, -8, 10, 9); cx.fillStyle = '#b9935c'; cx.beginPath(); cx.ellipse(0, -8, 5, 2, 0, 0, 7); cx.fill(); }
+    else {
+      cx.fillStyle = '#7a5530'; cx.fillRect(-3, -12, 6, 13);
+      const cols = [['#5fae4f', '#4b9440'], ['#3f9a4a', '#2f7d3b'], ['#2a6e3a', '#1d5a2e']][n.tier];
+      if (n.tier === 0) { cx.fillStyle = cols[0]; cx.beginPath(); cx.moveTo(-16, -10); cx.lineTo(16, -10); cx.lineTo(0, -44); cx.closePath(); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,.35)'; cx.lineWidth = 1; cx.stroke(); }
+      else if (n.tier === 1) { for (const [y, w] of [[-10, 18], [-22, 14], [-33, 10]]) { cx.fillStyle = y === -22 ? cols[1] : cols[0]; cx.beginPath(); cx.moveTo(-w, y); cx.lineTo(w, y); cx.lineTo(0, y - 18); cx.closePath(); cx.fill(); } }
+      else { for (let i = 0; i < 5; i++) { cx.fillStyle = i % 2 ? cols[1] : cols[0]; cx.beginPath(); cx.arc(Math.cos(i * 1.3) * 9, -26 + Math.sin(i * 1.7) * 8, 11, 0, 7); cx.fill(); } cx.fillStyle = 'rgba(255,255,255,.25)'; cx.beginPath(); cx.arc(-5, -32, 4, 0, 7); cx.fill(); }
+    }
+  } else {
+    if (dead) { cx.fillStyle = '#9aa0a8'; for (const [x, y] of [[-6, -2], [4, -3], [0, 1]]) { cx.beginPath(); cx.arc(x, y, 3, 0, 7); cx.fill(); } }
+    else {
+      const cols = [['#a8adb5', '#8a8f98'], ['#9097a3', '#6d7480'], ['#7b6f66', '#5a4f47']][n.tier];
+      cx.fillStyle = cols[0]; cx.beginPath(); cx.moveTo(-15, 0); cx.lineTo(-11, -14); cx.lineTo(0, -20); cx.lineTo(12, -13); cx.lineTo(15, 0); cx.closePath(); cx.fill();
+      cx.fillStyle = cols[1]; cx.beginPath(); cx.moveTo(0, -20); cx.lineTo(12, -13); cx.lineTo(15, 0); cx.lineTo(2, 0); cx.closePath(); cx.fill();
+      if (n.tier === 0) { cx.strokeStyle = '#3cf'; cx.setLineDash([3, 3]); cx.lineWidth = 1; cx.strokeRect(-16, -21, 32, 22); cx.setLineDash([]); }
+      if (n.tier === 2) { cx.fillStyle = '#c9a227'; for (const [x, y] of [[-6, -8], [5, -12], [8, -4]]) { cx.beginPath(); cx.arc(x, y, 1.8, 0, 7); cx.fill(); } }
+    }
+  }
+  if (n.tier && !dead) { cx.fillStyle = n.tier === 1 ? '#ffb02e' : '#ff4b4b'; cx.font = '800 10px system-ui'; cx.textAlign = 'center'; cx.fillText(n.tier === 1 ? '★' : '★★', 0, 12); }
+  cx.restore();
+  const me = snapB && snapB.p.get(myId);
+  if (me && (myGather === n.id || Math.hypot(me.x - n.x, me.y - n.y) < 70)) { cx.font = '700 11px system-ui'; cx.textAlign = 'center'; const lock = myScav.lvl < NODE_REQ[n.tier]; const t = dead ? 'used up (grows back)' : lock ? `🔒 Scavenging ${NODE_REQ[n.tier]}` : NODE_NAMES[n.k][n.tier]; cx.fillStyle = 'rgba(0,0,0,.55)'; const w = cx.measureText(t).width + 8; cx.fillRect(n.x - w / 2, n.y - 64, w, 15); cx.fillStyle = '#fff'; cx.fillText(t, n.x, n.y - 53); }
+}
+function drawBuildSite(now) {
+  const b = BUILD_AT; cx.save(); cx.translate(b.x, b.y);
+  cx.strokeStyle = '#ffb02e'; cx.lineWidth = 3; cx.setLineDash([8, 6]); cx.strokeRect(-70, -45, 140, 90); cx.setLineDash([]);
+  cx.fillStyle = '#b8864a'; cx.fillRect(-22, -18, 44, 30); cx.strokeStyle = '#7a5530'; cx.lineWidth = 2; cx.strokeRect(-22, -18, 44, 30); cx.beginPath(); cx.moveTo(-22, -18); cx.lineTo(22, 12); cx.moveTo(22, -18); cx.lineTo(-22, 12); cx.stroke();
+  cx.fillStyle = '#ffd34d'; cx.fillRect(-60, -70, 120, 20); cx.fillStyle = '#222'; cx.font = '800 11px system-ui'; cx.textAlign = 'center'; cx.fillText('BUILD SITE', 0, -56); cx.fillStyle = '#fff'; cx.font = '700 10px system-ui'; cx.fillText('walk in with ▲ polygons + ● vertices', 0, 30);
+  cx.restore();
+  if (patch >= 1 && ((myRes.poly || 0) + (myRes.vert || 0)) > 0) { const k = (Math.sin(now / 200) + 1) / 2; cx.strokeStyle = `rgba(255,211,77,${0.4 + 0.5 * k})`; cx.lineWidth = 3; cx.beginPath(); cx.arc(b.x, b.y, 80 + 6 * k, 0, 7); cx.stroke(); }
+} // first copies found since you last looked in the bag
 let giveTo = null; // when set, tapping an item in the bag gives one to this player
 function iconCanvas(i) {
   const it = ITEMS[i], c = document.createElement('canvas'); c.width = 112; c.height = 112;
@@ -543,13 +606,17 @@ function renderBag() {
       d.append(b, r, bo, l); g.append(d);
     }
   };
+  if (freshItems.size && giveTo == null) {
+    const nb = document.createElement('div'); nb.className = 'freshbar'; nb.style.gridColumn = '1/-1';
+    nb.textContent = `✨ NEW: ${[...freshItems].map((id) => ITEMS[idx(id)].name).join(' · ')}  (glowing below, tap to wear)`; g.append(nb);
+  }
   for (const slot of SLOTS) {
     head(SLOT_NAMES[slot]);
-    ITEMS.map((it, i) => [it, i]).sort((x, y) => (bag[y[0].id] > 0) - (bag[x[0].id] > 0)).forEach(([it, i]) => {
+    ITEMS.map((it, i) => [it, i]).sort((x, y) => (freshItems.has(y[0].id) - freshItems.has(x[0].id)) || ((bag[y[0].id] > 0) - (bag[x[0].id] > 0))).forEach(([it, i]) => {
       if (it.slot !== slot) return;
       const have = bag[it.id] > 0, on = wear[it.slot] === it.id;
       if (giveTo != null && !have) return;
-      const d = document.createElement('div'); d.className = 'it' + (on ? ' on' : '') + (have ? '' : ' no');
+      const d = document.createElement('div'); d.className = 'it' + (on ? ' on' : '') + (have ? '' : ' no') + (freshItems.has(it.id) ? ' fresh' : '');
       const c = have ? iconCanvas(i) : (() => { const c2 = document.createElement('canvas'); c2.width = 112; c2.height = 112; const k = c2.getContext('2d'); k.fillStyle = '#bbb'; k.font = '800 52px system-ui'; k.textAlign = 'center'; k.fillText('?', 56, 76); return c2; })();
       const b = document.createElement('b'); b.textContent = have ? it.name + ver(it) : '???'; b.style.color = have && it.r ? ['', '#2f8a25', '#1f6fc4', '#b0249e', '#b8860b'][it.r] : '';
       const goal = GOALS[it.id], gv = goal ? Math.min(goal.n, stats[goal.k] || 0) : 0;
@@ -585,8 +652,8 @@ addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 setInterval(() => { if (!keys.size || myId == null) return; const me = snapB && snapB.p.get(myId); if (!me) return; const dx = (keys.has('d') || keys.has('arrowright')) - (keys.has('a') || keys.has('arrowleft')), dy = (keys.has('s') || keys.has('arrowdown')) - (keys.has('w') || keys.has('arrowup')); if (dx || dy) send({ t: 'go', x: me.x + dx * 60, y: me.y + dy * 60 }); }, 120);
 addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target !== $('msg')) { e.preventDefault(); $('spin').click(); } });
 setInterval(() => { const me = snapB && snapB.p.get(myId); const show = !!me && !$('chatbox').classList.contains('open'); $('spin').classList.toggle('on', show); $('dash').classList.toggle('on', show); const dl = dashCd(mySk.dash) - myGear().dash - (performance.now() - dashAt); $('dash').classList.toggle('cd', dl > 0); $('dash').innerHTML = dl > 0 ? '💨<br>' + (dl / 1000).toFixed(1) + 's' : '💨<br>Dash'; const left = spinCd(mySk.spin) - (performance.now() - spinAt); $('spin').classList.toggle('cd', left > 0); $('spin').innerHTML = left > 0 ? '💥<br>' + Math.ceil(left / 1000) + 's' : '💥<br>Spin'; }, 200);
-$('bag').onclick = () => { send({ t: 'me' }); giveTo = null; scrapMode = false; $('bag').classList.remove('new'); renderBag(); $('bagp').classList.add('open'); $('mep').classList.remove('open'); $('shopp').classList.remove('open'); };
-$('bagx').onclick = () => { giveTo = null; $('bagp').classList.remove('open'); };
+$('bag').onclick = () => { send({ t: 'me' }); giveTo = null; scrapMode = false; $('bag').classList.remove('new'); renderBag(); $('bagp').classList.add('open'); $('bagp').scrollTop = 0; const f1 = $('baggrid').querySelector('.fresh'); if (f1) setTimeout(() => f1.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150); $('mep').classList.remove('open'); $('shopp').classList.remove('open'); };
+$('bagx').onclick = () => { giveTo = null; $('bagp').classList.remove('open'); freshItems.clear(); };
 
 // Hats are drawn with the head at (0,0), radius 14. Hand items point up from the hand.
 function checker(g, x, y, w, h, t) { for (let yy = 0; yy < h; yy += t) for (let xx = 0; xx < w; xx += t) { g.fillStyle = ((xx / t + yy / t) % 2) ? '#ff00dc' : '#111'; g.fillRect(x + xx, y + yy, Math.min(t, w - xx), Math.min(t, h - yy)); } }
@@ -734,6 +801,7 @@ function sfx(name, n = 0, v = 1) {
   else if (name === 'lvl' || name === 'title') { [0, 2, 4, 7].forEach((k, i) => { tone(a, 'triangle', NOTES[k], NOTES[k], 0.16, 0.06, i * 0.1); tone(a, 'triangle', NOTES[k] / 2, NOTES[k] / 2, 0.2, 0.06, i * 0.1); }); }
   else if (name === 'warn') { tone(a, 'triangle', 660, 660, 0.08, 0.06); tone(a, 'triangle', 660, 660, 0.08, 0.06, 0.15); }
   else if (name === 'slam') { tone(a, 'sine', 110, 35, 0.45, 0.25); noise(a, 0.3, 0.14, 0, 120); }
+  else if (name === 'chop') { if (n) { tone(a, 'triangle', 520, 300, 0.07, 0.09); noise(a, 0.05, 0.08, 0, 2500); } else { tone(a, 'sine', 180, 90, 0.08, 0.16); noise(a, 0.05, 0.08, 0, 900); } }
   else if (name === 'click') { tone(a, 'triangle', 900, 700, 0.04, 0.05); }
 }
 // background music: music_placeholder.mid. A 4-chord loop the composer left as a "temp track". Quiet.
@@ -784,16 +852,16 @@ function renderMe() {
   const rows = [['meshape', SHAPES, 0], ['meeyes', EYES, 1], ['memouth', MOUTHS, 2]];
   for (const [id, list, k] of rows) { const r = $(id); r.innerHTML = ''; list.forEach((nm, i) => r.append(opt(nm, look[k] === i, () => { look[k] = i; saveMe(); }))); }
   const tr = $('metitle'); tr.innerHTML = '';
-  TITLES.forEach((t, i) => { const got = titlesHave.includes(i); tr.append(opt(got ? t.name : '🔒 ' + t.how, look[3] === i, () => { if (!got) { toast('LOCKED', t.how + ' to unlock it.'); return; } look[3] = i; saveMe(); }, got ? '' : ' locked')); });
+  TITLES.forEach((t, i) => { const got = titlesHave.includes(i); tr.append(opt(got ? (freshTitles.has(i) ? '✨ NEW: ' : '') + t.name : '🔒 ' + t.how, look[3] === i, () => { if (!got) { toast('LOCKED', t.how + ' to unlock it.'); return; } look[3] = i; saveMe(); }, got ? (freshTitles.has(i) ? ' freshT' : '') : ' locked')); });
   $('mesnd').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
   $('memus').textContent = musicOn ? '🎵 Music on' : '🎵 Music off';
   $('mekey').textContent = myKey ? fmtKey(myKey) : '(not made yet)';
   const q = myQuest && QUESTS[myQuest.i];
   $('mequest').textContent = q ? `Quest from NPC_02: ${q.text} ${myQuest.have}/${q.n} (reward ${q.coins} coins)` : isUnlocked(patch, 'quests') ? 'No quest. Talk to NPC_02 by the plaza to get one.' : 'Quests arrive in a future patch.';
 }
-function openMe() { send({ t: 'me' }); $('mebtn').classList.remove('pulse'); $('mename').value = myName; renderMe(); $('mep').classList.add('open'); $('bagp').classList.remove('open'); $('shopp').classList.remove('open'); }
+function openMe() { send({ t: 'me' }); $('mebtn').classList.remove('pulse'); $('mename').value = myName; renderMe(); $('mep').classList.add('open'); $('bagp').classList.remove('open'); $('shopp').classList.remove('open'); const ft = $('metitle').querySelector('.freshT'); if (ft) setTimeout(() => ft.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150); }
 $('mebtn').onclick = openMe;
-$('mex').onclick = () => { const n = $('mename').value.trim(); if (n.length >= 2 && n !== myName) send({ t: 'rename', name: n }); $('mep').classList.remove('open'); };
+$('mex').onclick = () => { const n = $('mename').value.trim(); if (n.length >= 2 && n !== myName) send({ t: 'rename', name: n }); $('mep').classList.remove('open'); freshTitles.clear(); };
 $('mename').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('mex').click(); });
 $('merand').onclick = () => { sfx('click'); myHue = HUES[Math.floor(Math.random() * HUES.length)]; look = [Math.floor(Math.random() * SHAPES.length), Math.floor(Math.random() * EYES.length), Math.floor(Math.random() * MOUTHS.length), look[3]]; saveMe(); };
 $('memus').onclick = () => { musicOn = !musicOn; store.set('ut_music', musicOn ? '1' : '0'); renderMe(); };
@@ -869,8 +937,9 @@ cv.addEventListener('pointerdown', (ev) => {
   if (snapB) for (const s of snapB.m.values()) { const q = interp('m', s.id); const r = radiusOf(s.kind) + (s.kind === BOSS2 || s.kind === RELEASE ? 40 : 28); const d = Math.hypot(q.x - wx, q.y - wy); if (d < r && d < bd) { bd = d; best = s; } }
   if (!best && snapB) { for (const q of snapB.p.values()) { if (q.id === myId) continue; const qq = interp('p', q.id); if (qq && Math.hypot(qq.x - wx, qq.y - wy) < 14) { openCard(qq); return; } } }
   if (!best && !fence[2] && Math.abs(wx - FENCE_X) < 28) { send({ t: 'atk', id: 'fence' }); tapMark = { x: FENCE_X, y: wy, t: performance.now(), atk: true }; return; }
-  if (best) { send({ t: 'atk', id: best.id }); tapMark = { x: best.x, y: best.y, t: performance.now(), atk: true }; }
-  else { send({ t: 'go', x: wx, y: wy }); tapMark = { x: wx, y: wy, t: performance.now() }; }
+  if (best) { myGather = null; send({ t: 'atk', id: best.id }); tapMark = { x: best.x, y: best.y, t: performance.now(), atk: true }; }
+  else if (nodeAt(wx, wy)) { const n = nodeAt(wx, wy); if (deadNodes.has(n.id)) { toast('', `That ${n.k} is used up. It grows back soon.`); return; } send({ t: 'gather', id: n.id }); myGather = n.id; tapMark = { x: n.x, y: n.y, t: performance.now(), atk: true }; }
+  else { myGather = null; send({ t: 'go', x: wx, y: wy }); tapMark = { x: wx, y: wy, t: performance.now() }; }
 });
 function openChat() { $('emotes').classList.add('open'); $('chatbox').classList.add('open'); $('say').style.display = 'none'; $('invite').style.display = 'none'; $('bag').style.display = 'none'; $('mebtn').style.display = 'none'; $('msg').focus(); }
 function closeChat() { setTimeout(() => $('emotes').classList.remove('open'), 150); $('chatbox').classList.remove('open'); $('say').style.display = ''; $('invite').style.display = ''; $('bag').style.display = ''; $('mebtn').style.display = ''; $('msg').blur(); }
@@ -1280,6 +1349,8 @@ function frame() {
   const draw = [];
   if (snapB) {
     for (const id of snapB.m.keys()) { const s = interp('m', id); draw.push({ y: s.y, f: () => drawSlime(s, now) }); }
+    for (const n of NODES) draw.push({ y: n.y, f: () => drawNode(n, now) });
+    draw.push({ y: BUILD_AT.y - 40, f: () => drawBuildSite(now) });
     // name tags: when players stand on top of each other, stack their labels so they never jumble
     const ps = [...snapB.p.keys()].map((id) => interp('p', id)).sort((a, b) => (b.id === myId) - (a.id === myId) || a.y - b.y || a.id - b.id);
     const placed = [];

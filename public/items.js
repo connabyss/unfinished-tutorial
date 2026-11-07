@@ -317,3 +317,33 @@ export function gearOf(wear, up = {}) {
   }
   return g;
 }
+
+// ---------- Scavenging: the second skill. Chop trees for polygons, mine rocks for vertices, bring them to the BUILD SITE. ----------
+// Patches need materials as well as kills (from patch 0.0.2 on), so the world is built out of what people bring in.
+export const SCAV_MAX = 30;
+export const scavNeed = (lvl) => 12 * lvl * lvl;                 // scavenging XP to leave this level
+export const gatherMs = (lvl) => Math.max(700, 1500 - 25 * lvl); // time per swing at a tree or rock
+export const NODE_REQ = [1, 5, 12];     // scavenging level needed for each ring's nodes
+export const NODE_YIELD = [1, 2, 3];    // materials per success
+export const NODE_XP = [4, 9, 16];
+export const NODE_HP = [6, 5, 4];       // successes before it's used up (it grows back)
+export const RES = { poly: { name: "polygons", one: "polygon", icon: "▲", from: "tree" }, vert: { name: "vertices", one: "vertex", icon: "●", from: "rock" } };
+export const BUILD_AT = { x: 985, y: 705 };
+export const resGoal = (n) => n < 1 ? { poly: 0, vert: 0 } : { poly: Math.round(patchGoal(n) * 0.5), vert: Math.round(patchGoal(n) * 0.3) };
+export const NODE_NAMES = { tree: ["Tree (LOD 0)", "Tree (LOD 1, slightly round)", "Tree (high poly, do not ship)"], rock: ["Rock (collision only)", "Rock (has a normal map)", "Rock (photoscanned, 4 GB)"] };
+// the trees and rocks are in the same places for everyone: placed once from a fixed seed
+export const NODES = (() => {
+  let a = 7; const rnd = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const SP = { x: 800, y: 600 }, avoid = [SP, { x: 1030, y: 580 }, { x: 1000, y: 380 }, { x: 560, y: 520 }, BUILD_AT, { x: 800, y: 1170 }];
+  const out = [], want = [[0, "tree", 10], [0, "rock", 6], [1, "tree", 8], [1, "rock", 7], [2, "tree", 6], [2, "rock", 6]];
+  for (const [ring, k, n] of want) {
+    let made = 0, tries = 0;
+    while (made < n && tries++ < 5000) {
+      const x = 40 + rnd() * 1480, y = 40 + rnd() * 1120, d = Math.hypot(x - SP.x, y - SP.y);
+      const r = d < 380 ? 0 : d < 720 ? 1 : 2;
+      if (r !== ring || d < 170 || avoid.some((q) => Math.hypot(x - q.x, y - q.y) < 70) || out.some((o) => Math.hypot(x - o.x, y - o.y) < 60)) continue;
+      out.push({ id: out.length, k, tier: ring, x: Math.round(x), y: Math.round(y) }); made++;
+    }
+  }
+  return out;
+})();

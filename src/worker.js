@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { ITEMS, RARITY, DROP_CHANCE, rollItem, PATCHES, patchGoal, patchName, unlocked, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SETS,
   PRICES, shopStock, WISH_COST, QUESTS, EPIC_BOSSES, isBound, GIFT_MIN_KILLS, GIFTS_PER_DAY, GOALS, SHIP_KILLS, DAY_KILLS,
-  otNeed, SCRAP, RAINBOW_OT, SPIN_CD, HOTFIX_NOTES, SECRETS, LAUNCH, LAUNCH_CROWD, patchShare, helpersNeeded, BAR_MIN_KILLS, A2_DROP, SKILLS, skillCost, swingMs, spinCd, dashCd, LEVEL_CAP, dmgAt, gearOf, UPG_MAX, upgSpares, upgCost } from "../public/items.js";
+  otNeed, SCRAP, RAINBOW_OT, SPIN_CD, HOTFIX_NOTES, SECRETS, LAUNCH, LAUNCH_CROWD, patchShare, helpersNeeded, BAR_MIN_KILLS, A2_DROP, SKILLS, skillCost, swingMs, spinCd, dashCd, SCAV_MAX, scavNeed, gatherMs, NODE_REQ, NODE_YIELD, NODE_XP, NODE_HP, RES, BUILD_AT, resGoal, NODE_NAMES, NODES, LEVEL_CAP, dmgAt, gearOf, UPG_MAX, upgSpares, upgCost } from "../public/items.js";
 import { isBad, cleanChat, isReserved } from "./filter.js";
 
 // One shared world for everyone. The browser connects to /ws; everything else is the static page.
@@ -85,6 +85,7 @@ export class World extends DurableObject {
     this.event = null;           // current world event: { kind, until }
     this.nextEventAt = Date.now() + 5 * 60000;
     this.bots = new Map();       // placeholder players while the server is quiet
+    this.nodeHp = NODES.map((n) => NODE_HP[n.tier]); this.nodeBack = NODES.map(() => 0); // trees and rocks: uses left, and when a used-up one grows back
     ctx.blockConcurrencyWhile(async () => {
       this.total = (await ctx.storage.get("total")) || 0;
       this.patch = (await ctx.storage.get("patch")) || 0;          // patches shipped so far
@@ -95,6 +96,8 @@ export class World extends DurableObject {
       this.patchNext = (await ctx.storage.get("patchNext")) || {};   // kills banked toward the NEXT patch by players whose share is full
       this.patchNames = (await ctx.storage.get("patchNames")) || {}; // display names of this patch's helpers (for the credits)
       this.plaques = (await ctx.storage.get("plaques")) || {};
+      this.patchRes = (await ctx.storage.get("patchRes")) || { poly: 0, vert: 0 }; // materials delivered to the build site for this patch
+      this.resBy = (await ctx.storage.get("resBy")) || {};                         // materials per player for this patch
       if (await ctx.storage.get("a2perm")) { this.fence.hp = 0; this.fence.openUntil = 8.64e15; this.fence.perm = true; }
       // (plaques: patch number -> top 3 helpers, shown on a plaque in that zone)
     });
@@ -208,8 +211,15 @@ export class World extends DurableObject {
       p.dirty = true;
     } else if (m.t === "go") {
       if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) return;
-      p.tx = clamp(m.x, 20, W - 20); p.ty = clamp(m.y, 20, H - 20); p.target = null;
+      p.tx = clamp(m.x, 20, W - 20); p.ty = clamp(m.y, 20, H - 20); p.target = null; p.gather = null;
+    } else if (m.t === "gather") {
+      const nd = NODES[m.id];
+      if (!nd || !p.acct) return;
+      const lv = this.scavLvl(p);
+      if (lv < NODE_REQ[nd.tier]) return this.tell(p, { t: "err", text: `${NODE_NAMES[nd.k][nd.tier]} needs Scavenging level ${NODE_REQ[nd.tier]}. You're level ${lv}. Closer trees and rocks first.` });
+      p.gather = nd.id; p.target = null; p.tx = null; p.lastGather = Date.now();
     } else if (m.t === "atk") {
+      p.gather = null;
       if (m.id === "fence" && !this.fence.openUntil && unlocked(this.patch, "fence")) { p.target = "fence"; p.tx = null; }
       else if (m.id === "fence") this.tell(p, { t: "err", text: "The fence is invulnerable. HP wasn't implemented yet. (It ships in a patch.)" });
       else if (this.slimes.has(m.id)) { p.target = m.id; p.tx = null; }
@@ -309,7 +319,7 @@ export class World extends DurableObject {
     this.tell(p, { t: "me", name: a.name, hue: a.hue, look: a.look, bag: a.bag, wear: a.wear, coins: a.coins, stats: this.statsOf(a), titles: a.tu,
       quest: a.quest, muted: a.mutedUntil > Date.now(), seen: a.seen,
       dayk: a.dk && a.dk.d === today ? a.dk.k : 0,
-      sk: a.sk || {}, up: a.up || {}, shipk: this.patchBy[p.keyHash] || 0, share: this.shareOf(this.patch) });
+      sk: a.sk || {}, up: a.up || {}, res: a.res || {}, scav: a.scav || { lvl: 1, xp: 0 }, resGiven: this.resBy[p.keyHash] || {}, resShare: this.resShare(this.patch), shipk: this.patchBy[p.keyHash] || 0, share: this.shareOf(this.patch) });
   }
 
   async rename(p, raw) {
@@ -508,6 +518,49 @@ export class World extends DurableObject {
     return Math.min(helpersNeeded(n), Math.max(3, active));
   }
   shareOf(n) { return Math.ceil(patchGoal(n) / this.needed(n)); }
+  resShare(n) { const g = resGoal(n), k = this.needed(n); return { poly: Math.ceil(g.poly / k), vert: Math.ceil(g.vert / k) }; }
+  resDone() { const g = resGoal(this.patch); return this.patchRes.poly >= g.poly && this.patchRes.vert >= g.vert; }
+  scavLvl(p) { return (p.acct && p.acct.scav && p.acct.scav.lvl) || 1; }
+
+  // one swing at a tree or rock: a chance to get materials and scavenging XP
+  gatherTick(p, nd, now) {
+    const a = p.acct, sc = a.scav = a.scav || { lvl: 1, xp: 0 };
+    if (now - (p.lastGather || 0) < gatherMs(sc.lvl)) return;
+    p.lastGather = now;
+    if (this.nodeHp[nd.id] <= 0) { p.gather = null; return this.tell(p, { t: "err", text: `That ${nd.k} is used up. It grows back in a bit. Find another one.` }); }
+    const ok = Math.random() < Math.min(0.95, 0.55 + 0.05 * (sc.lvl - NODE_REQ[nd.tier]));
+    const kk = nd.k === "tree" ? "poly" : "vert";
+    let gain = 0;
+    if (ok) {
+      gain = NODE_YIELD[nd.tier]; a.res = a.res || {}; a.res[kk] = (a.res[kk] || 0) + gain;
+      sc.xp += NODE_XP[nd.tier]; this.stat(p, "gathered", gain);
+      while (sc.lvl < SCAV_MAX && sc.xp >= scavNeed(sc.lvl)) { sc.xp -= scavNeed(sc.lvl); sc.lvl++; this.events.push({ e: "slvl", id: p.id, lvl: sc.lvl }); }
+      if (--this.nodeHp[nd.id] <= 0) { this.nodeBack[nd.id] = now + 25000 + Math.random() * 15000; this.events.push({ e: "node", id: nd.id, on: 0 }); p.gather = null; }
+      p.dirty = true;
+    }
+    this.events.push({ e: "gat", id: p.id, n: nd.id, ok: ok ? 1 : 0, k: kk, gain });
+    this.tell(p, { t: "res", res: a.res || {}, scav: sc });
+  }
+
+  // standing at the build site hands in your materials, up to your share of this patch (the rest stay in your pockets)
+  deliver(p) {
+    const a = p.acct; if (!a || !a.res || this.patch >= LAUNCH + 1) return;
+    const g = resGoal(this.patch), sh = this.resShare(this.patch), mine = this.resBy[p.keyHash] = this.resBy[p.keyHash] || { poly: 0, vert: 0 };
+    let moved = 0;
+    for (const k of ["poly", "vert"]) {
+      const room = Math.min(sh[k] - mine[k], g[k] - this.patchRes[k]), give = Math.min(room, a.res[k] || 0);
+      if (give <= 0) continue;
+      a.res[k] -= give; mine[k] += give; this.patchRes[k] += give * (this.solo ? 3 : 1); moved += give;
+    }
+    if (!moved) { if (Object.keys(this.resBy[p.keyHash]).every((k) => !this.resBy[p.keyHash][k])) delete this.resBy[p.keyHash]; return; }
+    this.patchNames[p.keyHash] = p.name; this.dirty = true; p.dirty = true;
+    if (!a.pk || a.pk.p !== this.patch) a.pk = { p: this.patch, k: 0, need: Math.ceil(this.shareOf(this.patch) / 2) };
+    a.pk.k += moved; // materials count toward "helped ship this patch" like kills do
+    this.events.push({ e: "deliver", id: p.id, n: moved });
+    this.tell(p, { t: "res", res: a.res, scav: a.scav || { lvl: 1, xp: 0 }, given: mine, share: sh });
+    this.tryShip();
+  }
+
 
   sk(p, k) { return (p.acct && p.acct.sk && p.acct.sk[k]) || 0; }
 
@@ -675,8 +728,9 @@ export class World extends DurableObject {
     for (const s of this.slimes.values()) { if (s.kind === TODO) todos++; else if (!isBoss(s.kind)) normal++; }
     if (normal < want && Math.random() < (rain ? 0.9 : 0.3)) this.spawnSlime();
     this.worldEvents(now);
-    if (this.patch === LAUNCH && this.patchKills >= patchGoal(LAUNCH) && now >= (this.releaseAt || 0) && this.humans() > 0 && ![...this.slimes.values()].some((sl) => sl.kind === RELEASE)) { this.releaseAt = now + 600000; this.spawnSlime(true, false, RELEASE); }
+    if (this.patch === LAUNCH && this.patchKills >= patchGoal(LAUNCH) && this.resDone() && now >= (this.releaseAt || 0) && this.humans() > 0 && ![...this.slimes.values()].some((sl) => sl.kind === RELEASE)) { this.releaseAt = now + 600000; this.spawnSlime(true, false, RELEASE); }
     this.botBrains(now);
+    for (let i = 0; i < NODES.length; i++) if (this.nodeHp[i] <= 0 && now >= this.nodeBack[i]) { this.nodeHp[i] = NODE_HP[NODES[i].tier]; this.events.push({ e: "node", id: i, on: 1 }); }
     const f = this.fence;
     if (f.openUntil) {
       if (todos < Math.min(16, 4 + alive.length) && Math.random() < 0.3) this.spawnSlime(false, true);
@@ -687,7 +741,7 @@ export class World extends DurableObject {
     for (const p of this.players.values()) {
       if (p.deadUntil) {
         if (now >= p.deadUntil) {
-          p.deadUntil = 0; p.hp = p.max; p.x = SPAWN.x + (Math.random() - 0.5) * 100; p.y = SPAWN.y + 10 + Math.random() * 40; p.tx = p.ty = null; p.target = null;
+          p.deadUntil = 0; p.hp = p.max; p.x = SPAWN.x + (Math.random() - 0.5) * 100; p.y = SPAWN.y + 10 + Math.random() * 40; p.tx = p.ty = null; p.target = null; p.gather = null;
         }
         continue;
       }
@@ -698,6 +752,17 @@ export class World extends DurableObject {
           if (!this.fence.openUntil && p.x > FENCE_X - 16) p.x = FENCE_X - 16;
           continue;
         }
+      }
+      // walking past the build site hands in your materials
+      if (p.acct && !p.bot && p.acct.res && (p.acct.res.poly || p.acct.res.vert) && Math.abs(p.x - BUILD_AT.x) < 70 && Math.abs(p.y - BUILD_AT.y) < 60 && now - (p.lastDeliver || 0) > 500) { p.lastDeliver = now; this.deliver(p); }
+      // scavenging: walk up to the tree or rock, then swing at it
+      if (p.gather != null && p.target == null && p.tx == null) {
+        const nd = NODES[p.gather], d = Math.hypot(nd.x - p.x, nd.y - p.y);
+        if (d > 34) { const step = SPEED * dt; p.x += (nd.x - p.x) / d * Math.min(step, d - 30); p.y += (nd.y - p.y) / d * Math.min(step, d - 30); }
+        else if (p.acct) this.gatherTick(p, nd, now);
+        if (!this.fence.openUntil && p.x > FENCE_X - 16) p.x = FENCE_X - 16;
+        if (p.hp < p.max && now - p.lastHurt > 4000 && now - p.lastRegen > 1500) { p.hp++; p.lastRegen = now; }
+        continue;
       }
       let gx = p.tx, gy = p.ty;
       const t = p.target === "fence" ? (this.fence.openUntil ? null : { x: FENCE_X, y: clamp(p.y, 40, H - 40), r: 4, fence: true })
@@ -901,7 +966,7 @@ export class World extends DurableObject {
         if ((p.acct.stats.kills || 0) < BAR_MIN_KILLS) { warm = warm || p; continue; }
         const c = this.patchBy[p.keyHash] || 0;
         if (c >= share) { capped = capped || p; continue; }
-        this.patchBy[p.keyHash] = c + 1; this.patchKills += this.solo ? 3 : 1; credited = true; // test mode: each kill moves the bar 3 this.patchNames[p.keyHash] = p.name;
+        this.patchBy[p.keyHash] = c + 1; this.patchKills += this.solo ? 3 : 1; credited = true; this.patchNames[p.keyHash] = p.name; // test mode: each kill moves the bar 3
         if (!p.acct.pk || p.acct.pk.p !== this.patch) p.acct.pk = { p: this.patch, k: 0, need: Math.ceil(share / 2) };
         p.acct.pk.k++;
         this.tell(p, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), mine: c + 1, share });
@@ -921,11 +986,21 @@ export class World extends DurableObject {
         this.tell(warm, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), warm: warm.acct.stats.kills || 0, need: BAR_MIN_KILLS });
       }
     }
-    if (this.patchKills >= goal && this.patch !== LAUNCH) {
+    this.tryShip();
+    const boss = isBoss(s.kind);
+    this.killRewards(s, big, need, earned, boss);
+  }
+
+  // a patch ships when its kills AND its materials are all in
+  tryShip() {
+    const goal = patchGoal(this.patch);
+    if (this.patchKills >= goal && this.resDone() && this.patch !== LAUNCH) {
       const n = this.patch;
-      const credits = Object.entries(this.patchBy).sort((x, y) => y[1] - x[1]).map(([k, c]) => [this.patchNames[k] || "someone", c]);
+      const score = { ...this.patchBy };
+      for (const [k, v] of Object.entries(this.resBy)) score[k] = (score[k] || 0) + (v.poly || 0) + (v.vert || 0);
+      const credits = Object.entries(score).sort((x, y) => y[1] - x[1]).map(([k, c]) => [this.patchNames[k] || "someone", c]);
       this.plaques[n] = credits.slice(0, 3).map((c) => c[0]);
-      this.patchKills = 0; this.patch++; this.patchBy = {}; this.patchNames = {};
+      this.patchKills = 0; this.patch++; this.patchBy = {}; this.patchNames = {}; this.patchRes = { poly: 0, vert: 0 }; this.resBy = {};
       // banked kills from players whose share was full move into the new patch (still capped by its share)
       const ns = this.shareOf(this.patch);
       for (const [k, v] of Object.entries(this.patchNext)) {
@@ -940,7 +1015,9 @@ export class World extends DurableObject {
       this.events.push({ e: "sys", text: `Patch ${patchName(n)} shipped. ${note}` });
       for (const q of this.players.values()) this.creditShip(q);
     }
-    const boss = isBoss(s.kind);
+  }
+
+  killRewards(s, big, need, earned, boss) {
     const T = TIER[s.tier || 0], xp = kindOf(s.kind).xp * T.xp;
     for (const pid of s.hitters) {
       const p = this.players.get(pid);
@@ -995,7 +1072,7 @@ export class World extends DurableObject {
       const places = new Set(crowd.map((pid) => this.players.get(pid).ipTag || pid)).size;
       if ((this.solo || (crowd.length >= LAUNCH_CROWD && places >= 3)) && this.patch === LAUNCH) {
         this.plaques[LAUNCH] = crowd.slice(0, 3).map((pid) => this.players.get(pid).name);
-        this.patch++; this.patchKills = 0; this.patchBy = {}; this.patchNext = {}; this.patchNames = {}; this.dirty = true;
+        this.patch++; this.patchKills = 0; this.patchBy = {}; this.patchNext = {}; this.patchNames = {}; this.patchRes = { poly: 0, vert: 0 }; this.resBy = {}; this.dirty = true;
         this.events.push({ e: "patch", n: this.patch, name: "1.0", note: "VERSION 1.0 IS OUT. The game is finished. (It is not. But it shipped.)", launch: true, credits: crowd.map((pid) => [this.players.get(pid).name, 1]), helpers: crowd.length, plaque: this.plaques[LAUNCH] });
         this.events.push({ e: "sys", text: `${crowd.length} people beat RELEASE_CANDIDATE_1.0 together. VERSION 1.0 HAS SHIPPED. Everyone who helped is now a Day One player.` });
         for (const pid of crowd) { const q = this.players.get(pid); this.stat(q, "launch", 1); }
@@ -1096,7 +1173,7 @@ export class World extends DurableObject {
   save(force = false) {
     if (!this.dirty && !force) return;
     this.dirty = false; this.lastSave = Date.now();
-    const put = { total: this.total, patch: this.patch, patchKills: this.patchKills, finCount: this.finCount, patchBy: this.patchBy, patchNext: this.patchNext, patchNames: this.patchNames, plaques: this.plaques };
+    const put = { total: this.total, patch: this.patch, patchKills: this.patchKills, finCount: this.finCount, patchBy: this.patchBy, patchNext: this.patchNext, patchNames: this.patchNames, plaques: this.plaques, patchRes: this.patchRes, resBy: this.resBy };
     if (this.hofDirty) { put.hof = this.hof; this.hofDirty = false; }
     this.ctx.storage.put(put);
   }
@@ -1111,7 +1188,7 @@ export class World extends DurableObject {
     }
     for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind, s.tier || 0]);
     const ev = this.event ? [this.event.kind, Math.ceil((this.event.until - Date.now()) / 1000)] : null;
-    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch), Object.keys(this.patchBy).filter((k) => !k.startsWith("ip:")).length, this.needed(this.patch)], ev,
+    const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch), Object.keys(this.patchBy).filter((k) => !k.startsWith("ip:")).length, this.needed(this.patch), this.patchRes.poly, resGoal(this.patch).poly, this.patchRes.vert, resGoal(this.patch).vert], nd: this.nodeHp.map((h, i) => h > 0 ? -1 : i).filter((i) => i >= 0), ev,
       fz: [this.fence.hp, this.fence.max, this.fence.perm ? 99999 : this.fence.openUntil ? Math.ceil((this.fence.openUntil - Date.now()) / 1000) : 0] });
     this.events = [];
     for (const q of [...this.players.values()]) {
