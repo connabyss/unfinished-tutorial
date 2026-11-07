@@ -17,14 +17,14 @@ export const ITEMS = [
   { id: "wire", slot: "hat", r: 2, name: "Wireframe Crown", text: "The artist got as far as the lines." },
   { id: "notex", slot: "hat", r: 2, name: "Hat (no texture)", text: "Pink and black means it's working." },
   { id: "todo", slot: "hat", r: 3, name: "// TODO: hat", text: "The rarest hat. It was never made." },
-  { id: "noodle", slot: "hand", r: 0, name: "Pool Noodle", text: "Does the same damage as the stick. Everything does." },
-  { id: "baguette", slot: "hand", r: 0, name: "Baguette (placeholder sword)", text: "Nobody ever replaced it." },
-  { id: "spoon", slot: "hand", r: 0, name: "Debug Spoon", text: "Used to test the hit boxes. Still is." },
-  { id: "pencil", slot: "hand", r: 1, name: "Sword (concept art)", text: "Looked great on the pitch slide." },
-  { id: "final", slot: "hand", r: 1, name: "sword_FINAL_FINAL", text: "sword_FINAL_FINAL_2 is coming soon." },
-  { id: "noname", slot: "hand", r: 2, name: "ITEM_NAME_HERE", text: "Someone forgot to name it." },
-  { id: "keyboard", slot: "hand", r: 2, name: "Dev's Keyboard", text: "The Ctrl and Z keys are worn smooth." },
-  { id: "shard", slot: "hand", r: 3, name: "Shard of MISSING_TEXTURE", text: "A piece of the boss. It didn't load either." },
+  { id: "noodle", slot: "hand", fx: "knock", r: 0, name: "Pool Noodle", text: "Does the same damage as the stick. Everything does." },
+  { id: "baguette", slot: "hand", fx: "reach", r: 0, name: "Baguette (placeholder sword)", text: "Nobody ever replaced it." },
+  { id: "spoon", slot: "hand", fx: "crit", r: 0, name: "Debug Spoon", text: "Used to test the hit boxes. Still is." },
+  { id: "pencil", slot: "hand", fx: "quick", r: 1, name: "Sword (concept art)", text: "Looked great on the pitch slide." },
+  { id: "final", slot: "hand", fx: "cleave", r: 1, name: "sword_FINAL_FINAL", text: "sword_FINAL_FINAL_2 is coming soon." },
+  { id: "noname", slot: "hand", fx: "coin", r: 2, name: "ITEM_NAME_HERE", text: "Someone forgot to name it." },
+  { id: "keyboard", slot: "hand", fx: "quick", r: 2, name: "Dev's Keyboard", text: "The Ctrl and Z keys are worn smooth." },
+  { id: "shard", slot: "hand", fx: "cleave", r: 3, name: "Shard of MISSING_TEXTURE", text: "A piece of the boss. It didn't load either." },
   // ---- more hats
   { id: "paper", slot: "hat", r: 0, name: "Paper Crown (printed)", text: "Printed on the office printer. It jammed twice." },
   { id: "cone", slot: "hat", r: 0, name: "Traffic Cone (asset store)", text: "Bought for $2. Used in every game ever." },
@@ -35,12 +35,12 @@ export const ITEMS = [
   { id: "wizard", slot: "hat", r: 2, name: "Wizard Hat (spell not found)", text: "Magic was cut in pre-production." },
   { id: "crt", slot: "hat", r: 3, name: "CRT Monitor Head", text: "Shows the loading screen forever." },
   // ---- more held items
-  { id: "fish", slot: "hand", r: 0, name: "Fish (from the pond DLC)", text: "The pond DLC was cancelled. The fish escaped." },
-  { id: "mop", slot: "hand", r: 0, name: "QA Mop", text: "For cleaning up after a launch." },
-  { id: "umbrella", slot: "hand", r: 1, name: "Umbrella (no rain)", text: "Weather is one cloud. It never rains." },
-  { id: "laser", slot: "hand", r: 2, name: "Laser Pointer Sword", text: "Point at slimes. Cats love it." },
-  { id: "hammer", slot: "hand", r: 2, name: "Ban Hammer (mods only)", text: "There are no mods. You're holding it anyway." },
-  { id: "wand", slot: "hand", r: 3, name: "Wand of undefined", text: "Casts NaN. Nobody knows what that does." },
+  { id: "fish", slot: "hand", fx: "heal", r: 0, name: "Fish (from the pond DLC)", text: "The pond DLC was cancelled. The fish escaped." },
+  { id: "mop", slot: "hand", fx: "coin", r: 0, name: "QA Mop", text: "For cleaning up after a launch." },
+  { id: "umbrella", slot: "hand", fx: "reach", r: 1, name: "Umbrella (no rain)", text: "Weather is one cloud. It never rains." },
+  { id: "laser", slot: "hand", fx: "reach", r: 2, name: "Laser Pointer Sword", text: "Point at slimes. Cats love it." },
+  { id: "hammer", slot: "hand", fx: "stun", r: 2, name: "Ban Hammer (mods only)", text: "There are no mods. You're holding it anyway." },
+  { id: "wand", slot: "hand", fx: "crit", r: 3, name: "Wand of undefined", text: "Casts NaN. Nobody knows what that does." },
   // ---- backs
   { id: "cape", slot: "back", r: 0, name: "Cape (physics disabled)", text: "Stiff as a board. Cloth sim was too slow." },
   { id: "greycape", slot: "back", r: 0, name: "Grey Cape (untextured)", text: "The texture is coming in a patch." },
@@ -65,7 +65,7 @@ export const ITEMS = [
   { id: "tcheck", slot: "trail", r: 3, name: "Trail: MISSING_TEXTURE", text: "You leave the boss behind you. Literally." },
   // ---- ultra rare: actually finished
   { id: "realhat", slot: "hat", r: 4, name: "Hat (actually has texture)", text: "Fully textured. Normal maps. The devs cried." },
-  { id: "realsword", slot: "hand", r: 4, name: "Sword (fully animated)", text: "It has a swing animation. 24 frames. Unheard of." },
+  { id: "realsword", slot: "hand", fx: "quick", r: 4, name: "Sword (fully animated)", text: "It has a swing animation. 24 frames. Unheard of." },
   { id: "realcape", slot: "back", r: 4, name: "Cape (physics enabled)", text: "It flutters. The server can barely handle it." },
   { id: "realpet", slot: "pet", r: 4, name: "Pet (with real AI)", text: "It has thoughts. Mostly about the roadmap." },
   { id: "realtrail", slot: "trail", r: 4, name: "Trail: Finished Game", text: "Leaves a trail of shipped features. Very rare." },
@@ -81,14 +81,26 @@ export const SLOTS = ["hat", "hand", "back", "pet", "trail"];
 export const SLOT_NAMES = { hat: "Hats", hand: "Held", back: "Backs", pet: "Pets", trail: "Trails" };
 
 // Wear 3 or more pieces of a set for a glow and the set's name under yours.
+// every held item does ONE small thing. Rarer items aren't stronger, just rarer: pick the effect you like.
+export const FX = {
+  knock: { name: "Bonk", text: "Hits knock the slime back a step." },
+  reach: { name: "Long", text: "Reaches 22px farther." },
+  crit: { name: "Lucky", text: "+6% crit chance." },
+  heal: { name: "Snack", text: "Heal 1 HP every kill." },
+  coin: { name: "Greedy", text: "+1 coin every kill." },
+  quick: { name: "Quick", text: "Swings 60ms faster." },
+  cleave: { name: "Cleave", text: "Each hit also splashes 1 nearby slime for half damage." },
+  stun: { name: "Stun", text: "Crits make the slime wait 1s longer before its next bite." },
+};
+
 export const SETS = [
-  { name: "Dev Kit", color: "#ffd34d", items: ["mug", "keyboard", "hoodie", "pbug"] },
-  { name: "Placeholder", color: "#c8ccd2", items: ["cube", "spoon", "greycape", "pcube"] },
-  { name: "MISSING_TEXTURE", color: "#ff00dc", items: ["notex", "shard", "checkcape", "ptex", "tcheck"] },
-  { name: "Final_FINAL", color: "#6cb6ff", items: ["tophat", "final", "cape", "tlorem"] },
-  { name: "Cut Content", color: "#b44dff", items: ["wizard", "wand", "wings", "trainbow"] },
-  { name: "Under Construction", color: "#ff9a1f", items: ["hardhat", "scaffold", "tcaution"] },
-  { name: "Asset Store", color: "#ff9a3d", items: ["cone", "baguette", "pack", "pslime"] },
+  { name: "Dev Kit", color: "#ffd34d", items: ["mug", "keyboard", "hoodie", "pbug"], bonus: "dash", btext: "Dash recharges 0.5s faster." },
+  { name: "Placeholder", color: "#c8ccd2", items: ["cube", "spoon", "greycape", "pcube"], bonus: "heal", btext: "Heal 1 HP every kill." },
+  { name: "MISSING_TEXTURE", color: "#ff00dc", items: ["notex", "shard", "checkcape", "ptex", "tcheck"], bonus: "crit", btext: "+5% crit chance." },
+  { name: "Final_FINAL", color: "#6cb6ff", items: ["tophat", "final", "cape", "tlorem"], bonus: "counter", btext: "Counter window lasts 5s (was 3s)." },
+  { name: "Cut Content", color: "#b44dff", items: ["wizard", "wand", "wings", "trainbow"], bonus: "spin", btext: "Spin reaches 20px farther." },
+  { name: "Under Construction", color: "#ff9a1f", items: ["hardhat", "scaffold", "tcaution"], bonus: "armor", btext: "Ground pounds hurt 1 less." },
+  { name: "Asset Store", color: "#ff9a3d", items: ["cone", "baguette", "pack", "pslime"], bonus: "coin", btext: "+1 coin per kill (cashback)." },
 ];
 
 export const DROP_CHANCE = 0.2; // per person who hit a normal slime
@@ -265,3 +277,22 @@ export const DEV_NOTES = [
   "Rebalanced loot. We rolled a die. It said 'fine'.",
   "Known issue: everything. Workaround: keep playing.",
 ];
+
+// what your worn gear adds up to. wear = item indexes per slot (-1 = empty). Server and client both use this.
+export function gearOf(wear) {
+  const g = { reach: 0, crit: 0, quick: 0, heal: 0, coin: 0, knock: 0, cleave: 0, stun: 0, dash: 0, spin: 0, counter: 3000, armor: 0, sets: [] };
+  const worn = new Set();
+  for (const i of wear || []) {
+    const it = ITEMS[i]; if (!it) continue; worn.add(it.id);
+    if (it.fx === "reach") g.reach += 22; else if (it.fx === "crit") g.crit += 0.06; else if (it.fx === "quick") g.quick += 60;
+    else if (it.fx) g[it.fx] += 1;
+  }
+  for (const st of SETS) {
+    if (!st.items.every((id) => worn.has(id))) continue;
+    g.sets.push(st.name);
+    if (st.bonus === "dash") g.dash += 500; else if (st.bonus === "heal") g.heal += 1; else if (st.bonus === "crit") g.crit += 0.05;
+    else if (st.bonus === "counter") g.counter = 5000; else if (st.bonus === "spin") g.spin += 20; else if (st.bonus === "armor") g.armor += 1;
+    else if (st.bonus === "coin") g.coin += 1;
+  }
+  return g;
+}

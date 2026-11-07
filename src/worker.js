@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { ITEMS, RARITY, DROP_CHANCE, rollItem, PATCHES, patchGoal, patchName, unlocked, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SETS,
   PRICES, shopStock, WISH_COST, QUESTS, EPIC_BOSSES, isBound, GIFT_MIN_KILLS, GIFTS_PER_DAY, GOALS, SHIP_KILLS, DAY_KILLS,
-  otNeed, SCRAP, RAINBOW_OT, SPIN_CD, HOTFIX_NOTES, SECRETS, LAUNCH, LAUNCH_CROWD, patchShare, helpersNeeded, BAR_MIN_KILLS, A2_DROP, SKILLS, skillCost, swingMs, spinCd, dashCd } from "../public/items.js";
+  otNeed, SCRAP, RAINBOW_OT, SPIN_CD, HOTFIX_NOTES, SECRETS, LAUNCH, LAUNCH_CROWD, patchShare, helpersNeeded, BAR_MIN_KILLS, A2_DROP, SKILLS, skillCost, swingMs, spinCd, dashCd, gearOf } from "../public/items.js";
 import { isBad, cleanChat, isReserved } from "./filter.js";
 
 // One shared world for everyone. The browser connects to /ws; everything else is the static page.
@@ -391,6 +391,8 @@ export class World extends DurableObject {
     p.dirty = true; this.checkTitles(p);
   }
 
+  g(p) { if (!p.gear || p.gearKey !== p.wear.join()) { p.gear = gearOf(p.wear); p.gearKey = p.wear.join(); } return p.gear; }
+
   fullSets(p) {
     const worn = new Set(p.wear.filter((i) => i >= 0).map((i) => ITEMS[i].id));
     return SETS.filter((st) => st.items.every((id) => worn.has(id))).length;
@@ -514,9 +516,29 @@ export class World extends DurableObject {
     this.sendMe(p);
   }
 
+  // the one small thing your held item does (and your set bonus), after a normal hit lands
+  gearHit(p, t, dmg, crit, now, G) {
+    if (G.knock && !isBoss(t.kind) && t.hp > 0) {
+      const d = dist(p, t) || 1, k = 26 * G.knock;
+      t.x = clamp(t.x + (t.x - p.x) / d * k, 30, W - 30); t.y = clamp(t.y + (t.y - p.y) / d * k, 30, H - 30);
+      t.vx = t.vy = 0; t.hopEnd = 0;
+    }
+    if (G.stun && crit && t.hp > 0) { t.lastBite = Math.max(t.lastBite || 0, now) + 1000 * G.stun; if (t.wind) t.wind.at += 600; this.events.push({ e: "stun", id: t.id }); }
+    if (G.cleave) {
+      let best = null, bd = 60;
+      for (const o of this.slimes.values()) { if (o === t) continue; const dd = dist(o, t) - o.r; if (dd < bd) { bd = dd; best = o; } }
+      if (best) {
+        const sd = Math.max(1, Math.floor(dmg / 2));
+        best.hp -= sd; best.hitters.add(p.id); best.dmgBy.set(p.id, (best.dmgBy.get(p.id) || 0) + sd); best.lastBy = p.id; best.lastHitAt = now;
+        this.events.push({ e: "hit", by: p.id, id: best.id, dmg: sd, crit: false, combo: p.combo, cleave: 1 });
+        if (best.hp <= 0) this.kill(best);
+      }
+    }
+  }
+
   // dash: a quick burst away from what you're fighting (or toward where you point). Dodges bites, keeps your target.
   dash(p, now, m) {
-    if (p.deadUntil || now - (p.lastDash || 0) < dashCd(this.sk(p, "dash"))) return;
+    if (p.deadUntil || now - (p.lastDash || 0) < dashCd(this.sk(p, "dash")) - this.g(p).dash) return;
     p.lastDash = now;
     let ang;
     const t = p.target != null && p.target !== "fence" ? this.slimes.get(p.target) : null;
@@ -535,7 +557,7 @@ export class World extends DurableObject {
     const dmg = 1 + Math.floor((p.lvl - 1) / 2);
     let hit = 0;
     for (const t of [...this.slimes.values()]) {
-      if (dist(p, t) > t.r + 80 + 8 * this.sk(p, "spin")) continue;
+      if (dist(p, t) > t.r + 80 + 8 * this.sk(p, "spin") + this.g(p).spin) continue;
       t.hp -= dmg; t.hitters.add(p.id); t.dmgBy.set(p.id, (t.dmgBy.get(p.id) || 0) + dmg); t.lastBy = p.id; hit++;
       this.events.push({ e: "hit", by: p.id, id: t.id, dmg, crit: false, combo: p.combo });
       if (t.hp <= 0) this.kill(t);
@@ -657,18 +679,18 @@ export class World extends DurableObject {
       if (p.target != null && !t) p.target = null;
       if (t) {
         const d = dist(p, t);
-        if (d <= t.r + REACH) {
+        if (d <= t.r + REACH + this.g(p).reach) {
           gx = null;
           // no fighting from inside the tutorial circle: slimes can't bite you there, so you can't hit them either
           if (dist(p, SPAWN) < SAFE) { gx = t.x; gy = t.y; } // keep walking out of the circle toward it, then swing
-          else if (now - p.lastHit >= swingMs(this.sk(p, "swing"))) {
+          else if (now - p.lastHit >= swingMs(this.sk(p, "swing")) - this.g(p).quick) {
             // keep swinging without a break to build a combo; every 5th hit in a combo is a crit
             const tid = t.fence ? "fence" : t.id;
             p.combo = now - p.lastHit < 2500 && (p.comboOn === tid || p.comboFree) ? p.combo + 1 : 1;
             p.comboOn = tid; p.comboFree = false;
             p.lastHit = now;
             const counter = p.counterUntil > now; if (counter) p.counterUntil = 0;
-            const crit = counter || p.combo % 5 === 0 || Math.random() < 0.08;
+            const G = this.g(p), crit = counter || p.combo % 5 === 0 || Math.random() < 0.08 + G.crit;
             const base = 1 + Math.floor((p.lvl - 1) / 2), dmg = counter ? Math.round(base * 3 * (1 + 0.3 * this.sk(p, "counter"))) : base * (crit ? 2 : 1);
             this.stat(p, "combo", 0, p.combo); this.questProgress(p, "combo", 0, p.combo);
             if (t.fence) {
@@ -678,6 +700,7 @@ export class World extends DurableObject {
             } else {
               t.hp -= dmg; t.hitters.add(p.id); t.dmgBy.set(p.id, (t.dmgBy.get(p.id) || 0) + dmg); t.lastBy = p.id; t.lastHitAt = now;
               this.events.push({ e: "hit", by: p.id, id: t.id, dmg, crit, combo: p.combo, counter: counter ? 1 : 0 });
+              this.gearHit(p, t, dmg, crit, now, G);
               if (t.hp <= 0) this.kill(t);
             }
           }
@@ -783,11 +806,12 @@ export class World extends DurableObject {
             for (const q of alive) {
               if (q.deadUntil || dist(q, SPAWN) < SAFE || dist(q, s) >= aoe) continue;
               if (q === p) hitTarget = true;
-              q.hp -= s.dmg; q.lastHurt = now; q.combo = 0; this.events.push({ e: "ow", id: q.id, dmg: s.dmg });
+              const pd = Math.max(1, s.dmg - this.g(q).armor);
+              q.hp -= pd; q.lastHurt = now; q.combo = 0; this.events.push({ e: "ow", id: q.id, dmg: pd });
               if (q.hp <= 0) { q.hp = 0; q.deadUntil = now + 3000; q.target = null; this.events.push({ e: "die", id: q.id }); this.stat(q, "deaths", 1); }
             }
             this.events.push({ e: "pound", id: s.id, r: aoe });
-            if (p && !hitTarget && !p.deadUntil) { p.counterUntil = now + 3000; this.stat(p, "dodges", 1); this.events.push({ e: "dodge", id: p.id, sid: s.id }); }
+            if (p && !hitTarget && !p.deadUntil) { p.counterUntil = now + this.g(p).counter; this.stat(p, "dodges", 1); this.events.push({ e: "dodge", id: p.id, sid: s.id }); }
           } else if (p && !p.deadUntil && dist(p, SPAWN) >= SAFE && dist(p, s) < s.r + 24) {
             p.hp -= s.dmg; p.lastHurt = now; p.combo = 0;
             this.events.push({ e: "ow", id: p.id, dmg: s.dmg });
@@ -796,7 +820,7 @@ export class World extends DurableObject {
               this.events.push({ e: "die", id: p.id }); this.stat(p, "deaths", 1);
             }
           } else if (p && !p.deadUntil) {
-            p.counterUntil = now + 3000; this.stat(p, "dodges", 1);
+            p.counterUntil = now + this.g(p).counter; this.stat(p, "dodges", 1);
             this.events.push({ e: "dodge", id: p.id, sid: s.id });
           }
         }
@@ -894,7 +918,9 @@ export class World extends DurableObject {
       if (p.acct && !helped && !big) { /* a drive-by tap on a normal slime: XP only */ }
       else if (p.acct) {
         const coins = !helped ? 1 : boss ? 10 : s.kind === BUG ? 8 : s.kind === TODO ? 6 : xp;
-        p.acct.coins += coins; this.tell(p, { t: "coins", n: p.acct.coins, add: coins, x: Math.round(s.x), y: Math.round(s.y) });
+        const G = this.g(p), gc = helped ? G.coin : 0;
+        if (helped && G.heal && !p.deadUntil) p.hp = Math.min(p.max, p.hp + G.heal);
+        p.acct.coins += coins + gc; this.tell(p, { t: "coins", n: p.acct.coins, add: coins + gc, x: Math.round(s.x), y: Math.round(s.y) });
         if (helped) { this.stat(p, "kills", 1); this.questProgress(p, "kills", 1); }
         if (boss && helped) { this.stat(p, "boss", 1); this.questProgress(p, "boss", 1); }
         if (helped && s.kind === BIG) this.questProgress(p, "big", 1);
