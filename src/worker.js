@@ -651,7 +651,7 @@ export class World extends DurableObject {
         if (d <= t.r + REACH) {
           gx = null;
           // no fighting from inside the tutorial circle: slimes can't bite you there, so you can't hit them either
-          if (dist(p, SPAWN) < SAFE) { if (now - (p.safeTold || 0) > 8000) { p.safeTold = now; this.tell(p, { t: "err", text: "No fighting inside the tutorial circle. Step out to swing." }); } }
+          if (dist(p, SPAWN) < SAFE) { gx = t.x; gy = t.y; } // keep walking out of the circle toward it, then swing
           else if (now - p.lastHit >= swingMs(this.sk(p, "swing"))) {
             // keep swinging without a break to build a combo; every 5th hit in a combo is a crit
             const tid = t.fence ? "fence" : t.id;
