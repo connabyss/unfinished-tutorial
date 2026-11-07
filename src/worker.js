@@ -70,6 +70,8 @@ const xpFor = (lvl) => lvl * lvl * 8; // xp needed to leave this level: Lv 5 in 
 export class World extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
+    // SOLO_TEST=1 only ever comes from PLAY-ON-MY-PC.bat: one person can ship patches alone to test them. The live game never sets it.
+    this.solo = !!(env && env.SOLO_TEST === "1");
     this.players = new Map();
     this.slimes = new Map();
     this.active = new Map(); // account -> last time it really helped kill something (sizes the patch crowd)
@@ -135,6 +137,7 @@ export class World extends DurableObject {
     };
     this.players.set(id, p);
     ws.send(JSON.stringify({ t: "you", id, total: this.total, w: W, h: H, plaques: this.plaques }));
+    if (this.solo) ws.send(JSON.stringify({ t: "err", text: "SOLO TEST MODE (your PC only): you can ship patches alone, and each kill moves the bar 3. The real game still needs a crowd." }));
     // a socket that never says hi doesn't get to hold a slot
     setTimeout(() => { if (this.players.get(id) === p && !p.named && !p.loading) { try { ws.close(4001, "no hi"); } catch {} this.leave(p); } }, 10000);
     ws.addEventListener("message", (ev) => this.onMsg(p, ev.data));
@@ -501,6 +504,7 @@ export class World extends DurableObject {
   needed(n) {
     const cut = Date.now() - 3600000; let active = 0;
     for (const [k, t] of this.active) { if (t < cut) this.active.delete(k); else active++; }
+    if (this.solo) return 1;
     return Math.min(helpersNeeded(n), Math.max(3, active));
   }
   shareOf(n) { return Math.ceil(patchGoal(n) / this.needed(n)); }
@@ -897,7 +901,7 @@ export class World extends DurableObject {
         if ((p.acct.stats.kills || 0) < BAR_MIN_KILLS) { warm = warm || p; continue; }
         const c = this.patchBy[p.keyHash] || 0;
         if (c >= share) { capped = capped || p; continue; }
-        this.patchBy[p.keyHash] = c + 1; this.patchKills++; credited = true; this.patchNames[p.keyHash] = p.name;
+        this.patchBy[p.keyHash] = c + 1; this.patchKills += this.solo ? 3 : 1; credited = true; // test mode: each kill moves the bar 3 this.patchNames[p.keyHash] = p.name;
         if (!p.acct.pk || p.acct.pk.p !== this.patch) p.acct.pk = { p: this.patch, k: 0, need: Math.ceil(share / 2) };
         p.acct.pk.k++;
         this.tell(p, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), mine: c + 1, share });
@@ -989,7 +993,7 @@ export class World extends DurableObject {
     } else if (s.kind === RELEASE) {
       const crowd = [...s.hitters].filter((pid) => { const q = this.players.get(pid); return q && q.acct && !q.bot && earned(pid); });
       const places = new Set(crowd.map((pid) => this.players.get(pid).ipTag || pid)).size;
-      if (crowd.length >= LAUNCH_CROWD && places >= 3 && this.patch === LAUNCH) {
+      if ((this.solo || (crowd.length >= LAUNCH_CROWD && places >= 3)) && this.patch === LAUNCH) {
         this.plaques[LAUNCH] = crowd.slice(0, 3).map((pid) => this.players.get(pid).name);
         this.patch++; this.patchKills = 0; this.patchBy = {}; this.patchNext = {}; this.patchNames = {}; this.dirty = true;
         this.events.push({ e: "patch", n: this.patch, name: "1.0", note: "VERSION 1.0 IS OUT. The game is finished. (It is not. But it shipped.)", launch: true, credits: crowd.map((pid) => [this.players.get(pid).name, 1]), helpers: crowd.length, plaque: this.plaques[LAUNCH] });
