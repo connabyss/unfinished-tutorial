@@ -32,6 +32,13 @@
   #chatbox.open { display:flex; }
   #chatbox input { flex:1; min-width:0; height:46px; border-radius:12px; border:0; padding:0 12px; font:inherit; font-size:16px; }
   #toast { position:fixed; left:50%; top:30%; transform:translate(-50%,-50%); text-align:center; font-weight:800; font-size:22px; text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.6); pointer-events:none; opacity:0; transition:opacity .3s; width:min(90%,520px); }
+  #pb.bump { animation:bump .25s; } @keyframes bump { 50% { transform:scaleY(1.9); filter:brightness(1.6); } }
+  #mypart { font-size:12px; opacity:.85; margin-top:3px; color:#bfe3ff; }
+  #credits { position:fixed; inset:0; pointer-events:none; display:none; overflow:hidden; }
+  #credits.on { display:block; }
+  #credroll { position:absolute; left:50%; transform:translateX(-50%); top:100%; text-align:center; font-weight:800; font-size:16px; line-height:1.5; text-shadow:0 2px 0 #000,0 0 10px rgba(0,0,0,.8); width:min(90%,420px); animation:roll 7s linear forwards; }
+  #credroll h3 { font-size:22px; margin:0 0 6px; color:#ffd34d; } #credroll small { display:block; font-weight:600; opacity:.85; margin-top:8px; }
+  @keyframes roll { from { top:58%; } to { top:-70%; } }
   #toast small { display:block; font-size:15px; font-weight:600; margin-top:6px; }
   #bag { position:relative; }
   #mebtn.pulse { animation:pulse 1s infinite; } @keyframes pulse { 50% { background:#ffd34d; } }
@@ -86,12 +93,29 @@
   #spin.on { display:block; } #spin.cd { opacity:.45; }
   @media (max-width:500px) {
     #me, #world { max-width:calc(50% - 15px); font-size:12px; padding:6px 8px; }
+    #world > div:nth-child(2) { display:none; } #mypart { font-size:11px; }
     #me { min-width:0; } #pb { width:100%; } #me .name { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     #log { font-size:12px; width:calc(100% - 90px); }
   }
   @media (max-width:360px) { button { padding:0 10px; font-size:14px; } }
   #status { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(20,26,18,.85); font-size:18px; text-align:center; padding:20px; }
   #status.hide { display:none; }
+  #login { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse at center, rgba(15,22,14,.35), rgba(10,14,9,.82)); padding:16px; z-index:20; }
+  #login.gone { display:none; }
+  body.landing > *:not(#login):not(canvas):not(script) { visibility:hidden; }
+  .lbox { width:min(100%,400px); background:rgba(18,24,16,.88); border:2px solid #ffd34d; border-radius:18px; padding:20px 20px 14px; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,.6); }
+  .lbox h1 { margin:6px 0 6px; font-size:34px; line-height:1.02; letter-spacing:1px; color:#ffd34d; text-shadow:3px 3px 0 #ff00dc, -2px -2px 0 #111; }
+  .lver { font:700 11px ui-monospace,monospace; opacity:.7; letter-spacing:1px; }
+  .ltag { font-size:14px; opacity:.9; margin-bottom:12px; }
+  .lworld { background:rgba(255,255,255,.07); border-radius:10px; padding:8px 10px; font-size:13px; text-align:left; margin-bottom:14px; } .lworld b { color:#ffd34d; } .lworld .bar i { background:#6fd3ff; }
+  #lnew { text-align:left; } #lnew label { font-size:12px; opacity:.75; } 
+  #login input { width:100%; box-sizing:border-box; font:700 18px system-ui,sans-serif; padding:10px 12px; border-radius:10px; border:2px solid #4a5a3e; background:#0f140d; color:#fff; margin:4px 0 12px; }
+  #lback { font-size:18px; margin:6px 0 14px; } #lback b { color:#ffd34d; }
+  #lplay { width:100%; font:900 24px system-ui,sans-serif; padding:14px; border-radius:14px; border:none; background:#ffd34d; color:#1b1f17; cursor:pointer; box-shadow:0 5px 0 #b8901c; }
+  #lplay:active { transform:translateY(3px); box-shadow:0 2px 0 #b8901c; }
+  .llinks { display:flex; justify-content:center; gap:18px; margin:12px 0 4px; font-size:13px; } .llinks a { color:#bfe3ff; }
+  #lcode { text-transform:uppercase; letter-spacing:2px; text-align:center; }
+  .lfoot { font:600 10px ui-monospace,monospace; opacity:.5; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -103,7 +127,8 @@
   <div class="bar" id="hp"><i></i></div>
   <div class="bar" id="xp"><i></i></div>
 </div>
-<div id="world" class="hud"><div><b id="on">0</b> online</div><div><b id="tot">0</b> slimes killed by everyone</div><div id="a2" style="display:none;color:#ff7bf0;font-weight:800"></div><div id="evt" style="display:none;color:#ffd34d;font-weight:800"></div><div id="pt">Next patch</div><div class="bar" id="pb"><i></i></div></div>
+<div id="world" class="hud"><div><b id="on">0</b> online</div><div><b id="tot">0</b> slimes killed by everyone</div><div id="a2" style="display:none;color:#ff7bf0;font-weight:800"></div><div id="evt" style="display:none;color:#ffd34d;font-weight:800"></div><div id="pt">Next patch</div><div class="bar" id="pb"><i></i></div><div id="mypart"></div></div>
+<div id="credits"><div id="credroll"></div></div>
 <div id="log"></div>
 <div id="bar">
   <button id="say">💬 Chat</button>
@@ -133,7 +158,21 @@
   <h3>Other</h3><div class="row"><button class="opt" id="merand">🎲 Randomize</button><button class="opt" id="mesnd"></button><button class="opt" id="memus"></button></div>
 </div>
 <div id="bagp"><button class="close" id="bagx">Close</button><h2>Bag</h2><div class="sub" id="bagsub"></div><div class="grid" id="baggrid"></div></div>
-<div id="status">Connecting to the only server…</div>
+<div id="status" class="hide">Connecting to the only server…</div>
+<div id="login">
+  <div class="lbox">
+    <div class="lver">v0.0.<span id="lpv">?</span> · EARLY ACCESS (FOREVER)</div>
+    <h1>THE UNFINISHED<br>TUTORIAL</h1>
+    <div class="ltag">A massively multiplayer tutorial. The rest of the game ships when enough of you show up.</div>
+    <div class="lworld"><div><b id="lon">…</b> online now · <b id="ltot">…</b> slimes killed</div><div id="lpt">Checking the patch bar…</div><div class="bar" id="lpb"><i></i></div></div>
+    <div id="lnew"><label for="lname">Name</label><input id="lname" maxlength="16" autocomplete="off" spellcheck="false"></div>
+    <div id="lback" style="display:none">Welcome back, <b id="lbname"></b>.</div>
+    <button id="lplay">PLAY</button>
+    <div class="llinks"><a href="#" id="lcodeL">I have a save code</a><a href="#" id="lfresh" style="display:none">New character</a></div>
+    <div id="lcodeR" style="display:none"><input id="lcode" maxlength="20" placeholder="SAVE-CODE" autocomplete="off" spellcheck="false"></div>
+    <div class="lfoot">Password: none. Security: TODO. Server: world-1 (the only one).</div>
+  </div>
+</div>
 <script type="module">
 import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, FINDABLE, SCRAP, RAINBOW_OT, SPIN_CD, SECRETS, LAUNCH_CROWD, patchName, OT_REWARDS } from './items.js';
 {
@@ -244,6 +283,10 @@ function drawPaintedTree(b, now) {
 // where in the world is a point: which zone, and is it painted
 const zoneAt = (x, y) => ZONES.find((z) => x >= z.x && x < z.x + z.w && y >= z.y && y < z.y + z.h);
 let paintWipe = null; // { z, t } a zone being painted right now
+const winds = new Map(); // slime id -> { t, ms, pid }: a bite is winding up
+const plaqueSpots = [];
+let counterOn = 0, camFly = null, plaques = {}, sparks = [], myPart = null; // counter crit ready; camera flying to a newly painted zone; zone plaques; bar sparks
+const beams = []; // rare loot beams everyone can see
 const SLIME_NAMES = ["SLIME_FINAL", "SLIME_FINAL_v2", "SLIME_FINAL_v2_ACTUAL", "slime (placeholder)", "slime_copy(3)", "SLIME_DO_NOT_SHIP"];
 const BOSS = 99, BOSS2 = 97, TODO = 98, FAST = 10, BIG = 11, LAG = 12, BUG = 13, FENCE_X = 1560;
 const HOF_AT = { x: 690, y: 430 }, SHOP_AT = { x: 1030, y: 580 }, FOUNTAIN_AT = { x: 1000, y: 380 }, NPC_AT = { x: 560, y: 520 };
@@ -269,7 +312,7 @@ function connect() {
   ws.onopen = () => { sendHi(); };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.t === 'you') { myId = m.id; W = m.w; H = m.h; total = m.total; $('status').classList.add('hide'); }
+    if (m.t === 'you') { myId = m.id; W = m.w; H = m.h; total = m.total; plaques = m.plaques || {}; $('status').classList.add('hide'); }
     else if (m.t === 'full') { $('status').textContent = m.why ? 'Too many tabs open from one place. Close a few and reload.' : 'The server is full. An MMO with a queue. Very authentic. Try again soon.'; }
     else if (m.t === 's') onSnap(m);
     else if (m.t === 'loot') onLoot(m.item, m.x, m.y, m.from, m.why);
@@ -279,7 +322,8 @@ function connect() {
     else if (m.t === 'secret') { coins = m.coins; $('coins').textContent = coins.toLocaleString(); toast(`HIDDEN SPOT ${m.n}/${m.of}`, SECRETS[m.i].text + ' +20 coins.'); sfx('title'); log(`You found a hidden spot (${m.n}/${m.of}).`, true); }
     else if (m.t === 'err') { toast('', m.text); log(m.text, true); }
     else if (m.t === 'title') { if (!titlesHave.includes(m.i)) titlesHave.push(m.i); if ($('mep').classList.contains('open')) renderMe(); setTimeout(() => { toast('TITLE UNLOCKED: ' + TITLES[m.i].name, 'Tap 🎨 Me to wear it under your name.'); sfx('title'); $('mebtn').classList.add('pulse'); }, 900); }
-    else if (m.t === 'coins') { coins = m.n; $('coins').textContent = coins.toLocaleString(); fx.push({ x: m.x + 14, y: m.y - 30, text: '+' + m.add + '¢', c: '#ffe36b', t: performance.now() + 200, life: 800, big: 0.85 }); }
+    else if (m.t === 'bar') onBar(m);
+    else if (m.t === 'coins') { coins = m.n; $('coins').textContent = coins.toLocaleString(); fx.push({ x: m.x + 34, y: m.y - 8, text: '+' + m.add + '¢', c: '#ffe36b', t: performance.now() + 250, life: 700, big: 0.75 }); }
     else if (m.t === 'qp') { if (myQuest) myQuest.have = m.have; fx.push({ x: (snapB.p.get(myId) || SPAWN).x, y: (snapB.p.get(myId) || SPAWN).y - 70, text: `quest ${m.have}/${m.n}`, c: '#bfe3ff', t: performance.now(), life: 1000, big: 0.8 }); if (m.have >= m.n) { toast('QUEST READY', 'Go back to NPC_02 to hand it in.'); sfx('title'); } }
     else if (m.t === 'kicked') { kicked = true; $('status').classList.remove('hide'); $('status').textContent = 'You opened the game somewhere else, so this tab was closed. One character, one tab. Like a real MMO.'; }
   };
@@ -298,7 +342,7 @@ function onSnap(m) {
   snapAt = performance.now();
   total = m.total;
   if (m.fz) { const was = fence[2]; fence = m.fz; $('a2').style.display = fence[2] ? '' : 'none'; if (fence[2]) $('a2').textContent = `AREA 2 OPEN: ${Math.floor(fence[2] / 60)}:${String(fence[2] % 60).padStart(2, '0')}`; }
-  if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Tap the Shop button. Kills give coins.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch], launch = patch === PATCHES.length; $('pt').textContent = launch ? (m.pa[1] >= m.pa[2] ? `1.0 LAUNCH: beat RELEASE_CANDIDATE_1.0 with ${LAUNCH_CROWD}+ people` : `Next: 1.0 LAUNCH · ${m.pa[1]}/${m.pa[2]} · helpers ${m.pa[3] || 0}/${m.pa[4] || 5}+`) : `Patch ${patchName(patch)}${nx ? ': ' + nx.tease : ''} · ${m.pa[1]}/${m.pa[2]} · helpers ${m.pa[3] || 0}/${m.pa[4] || 5}+`; $('pb').firstChild.style.width = (100 * m.pa[1] / m.pa[2]) + '%'; updateActions(); }
+  if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Tap the Shop button. Kills give coins.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch], launch = patch === PATCHES.length; $('pt').textContent = launch ? (m.pa[1] >= m.pa[2] ? `1.0 LAUNCH: beat RELEASE_CANDIDATE_1.0 with ${LAUNCH_CROWD}+ people` : `Next: 1.0 LAUNCH · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`) : `Patch ${patchName(patch)}${nx && innerWidth >= 500 ? ': ' + nx.tease : ''} · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`; $('pb').firstChild.style.width = (100 * m.pa[1] / m.pa[2]) + '%'; updateActions(); }
   const bots = [...snapB.p.values()].filter((q) => q.bot).length;
   $('on').textContent = m.n + (bots ? ` (+${bots} bot${bots > 1 ? 's' : ''})` : ''); $('tot').textContent = total.toLocaleString();
   for (const e of m.e) onEvent(e);
@@ -310,29 +354,57 @@ function onSnap(m) {
     $('xp').firstChild.style.width = Math.min(100, 100 * me.xp / (me.need || 1)) + '%'; $('xp').firstChild.style.background = me.lvl >= 5 ? '#ffb02e' : '';
   }
 }
+function setPart() {
+  const el = $('mypart'); if (!myPart) { el.textContent = ''; return; }
+  el.textContent = myPart.warm != null ? `you: warming up ${myPart.warm}/${myPart.need} kills, then your kills fill the bar`
+    : myPart.banked != null ? `your part: done ✓ · ${myPart.banked}/${myPart.nextShare} banked for next patch`
+    : `your part: ${myPart.mine}/${myPart.share}`;
+}
+function onBar(m) {
+  myPart = m; setPart();
+  const cam = camera(), r = $('pb').getBoundingClientRect();
+  sparks.push({ sx: m.x - cam.x, sy: m.y - cam.y, tx: r.left + r.width * Math.min(1, ($('pb').firstChild.offsetWidth || 0) / (r.width || 1)), ty: r.top + 3, t: performance.now(), c: m.warm != null ? '#9aa3ad' : m.banked != null ? '#b48cff' : '#6fd3ff' });
+}
+function showCredits(e) {
+  const roll = $('credroll'); roll.innerHTML = '';
+  const h = document.createElement('h3'); h.textContent = e.launch ? 'VERSION 1.0' : 'PATCH ' + e.name + ' SHIPPED'; roll.append(h);
+  const nt = document.createElement('div'); nt.style.cssText = 'font-size:14px;font-weight:600;margin-bottom:10px'; nt.textContent = e.note + (e.art ? ' ' + e.art : ''); roll.append(nt);
+  const sub = document.createElement('div'); sub.textContent = e.helpers ? `Made by ${e.helpers} ${e.helpers === 1 ? 'person' : 'people'}. Thanks to:` : 'Thanks to: nobody, apparently.'; roll.append(sub);
+  for (const [n, c] of (e.credits || [])) { const d = document.createElement('div'); d.textContent = e.launch ? n : `${n} · ${c} kills`; roll.append(d); }
+  const sm = document.createElement('small'); sm.textContent = 'Bench legs: not included. Lighting: TODO.'; roll.append(sm);
+  $('credits').classList.remove('on'); void roll.offsetWidth; roll.style.animation = 'none'; void roll.offsetWidth; roll.style.animation = ''; $('credits').classList.add('on');
+  clearTimeout(showCredits.t); showCredits.t = setTimeout(() => $('credits').classList.remove('on'), 7200);
+}
 function nameOf(id) { const p = snapB && snapB.p.get(id); return p ? p.name : 'someone'; }
 function onEvent(e) {
   const now = performance.now();
   if (e.e === 'sys') log(e.text, true);
   else if (e.e === 'say' && isMuted(snapB.p.get(e.id))) {}
   else if (e.e === 'say') { bubbles.set(e.id, { text: e.text, until: now + 6000 }); log(null, false, nameOf(e.id), e.text); }
+  else if (e.e === 'wind') { winds.set(e.id, { t: now, ms: e.ms, pid: e.pid }); if (e.pid === myId) sfx('warn'); }
+  else if (e.e === 'dodge') {
+    const p = snapB.p.get(e.id); winds.delete(e.sid);
+    if (p) fx.push({ x: p.x, y: p.y - 44, text: e.id === myId ? 'DODGED! next hit: COUNTER' : 'dodged', c: '#7fe8ff', t: now, life: 1000, big: e.id === myId ? 1.15 : 0.8 });
+    if (e.id === myId) { counterOn = now; sfx('title'); }
+  }
+  else if (e.e === 'beam') { beams.push({ x: e.x, y: e.y, c: RARITY[e.r].color, t: now }); if (near(e)) sfx('loot', 1); }
   else if (e.e === 'hit') {
-    swings.set(e.by, now); slimeHit.set(e.id, now);
+    swings.set(e.by, now); slimeHit.set(e.id, now); winds.delete(e.id);
     const s = snapB.m.get(e.id) || (snapA && snapA.m.get(e.id)), mine = e.by === myId;
     if (s) {
-      fx.push({ x: s.x + (Math.random() - .5) * 18, y: s.y - 22, text: (e.crit ? 'CRIT ' : '') + '-' + e.dmg, c: e.crit ? '#ff9a3d' : mine ? '#fff' : '#ffe08a', t: now, life: e.crit ? 900 : 700, big: e.crit ? 1.6 : mine ? 1.15 : 0.9 });
+      fx.push({ x: s.x + (Math.random() - .5) * 18, y: s.y - 22, text: (e.counter ? 'COUNTER ' : e.crit ? 'CRIT ' : '') + '-' + e.dmg, c: e.counter ? '#7fe8ff' : e.crit ? '#ff9a3d' : mine ? '#fff' : '#ffe08a', t: now, life: e.crit ? 900 : 700, big: e.counter ? 2 : e.crit ? 1.6 : mine ? 1.15 : 0.9 });
       const n = e.crit ? 10 : 5; for (let i = 0; i < n; i++) fx.push({ x: s.x, y: s.y, vx: (Math.random() - .5) * 220, vy: (Math.random() - .8) * 200, dot: true, sz: 3 + Math.random() * 3, c: s.kind === BOSS ? (i % 2 ? '#ff00dc' : '#111') : s.kind === BOSS2 ? '#c3cad2' : s.kind === TODO ? '#c8ccd2' : s.kind === FAST ? '#ff8ad8' : s.kind === LAG ? '#7fb8ff' : '#7be36a', t: now, life: 450 });
     }
-    if (mine) { onMyHit(e); shake(e.crit ? 6 : 2.5); sfx(e.crit ? 'crit' : 'hit', e.combo); }
+    if (mine) { if (e.counter) { counterOn = 0; shake(10); fx.push({ x: s ? s.x : 0, y: s ? s.y : 0, ring: true, r: 70, c: '#7fe8ff', t: now, life: 400 }); } onMyHit(e); shake(e.crit ? 6 : 2.5); sfx(e.crit ? 'crit' : 'hit', e.combo); }
     else if (s && near(s)) sfx('hit', 0, 0.25);
   }
-  else if (e.e === 'ow') { hurt.set(e.id, now); const p = snapB.p.get(e.id); if (p) fx.push({ x: p.x, y: p.y - 30, text: '-' + e.dmg, c: '#ff6b6b', t: now, life: 800, big: 1.2 }); if (e.id === myId) { shake(7); sfx('ow'); redFlash = now; } }
+  else if (e.e === 'ow') { hurt.set(e.id, now); for (const [k, w] of winds) if (w.pid === e.id) winds.delete(k); const p = snapB.p.get(e.id); if (p) fx.push({ x: p.x, y: p.y - 30, text: '-' + e.dmg, c: '#ff6b6b', t: now, life: 800, big: 1.2 }); if (e.id === myId) { shake(7); sfx('ow'); redFlash = now; } }
   else if (e.e === 'kill') {
     const mine = e.by && e.by.includes(myId);
     for (let i = 0; i < (e.boss ? 60 : 18); i++) fx.push({ x: e.x, y: e.y, vx: (Math.random() - .5) * (e.boss ? 520 : 320), vy: (Math.random() - .75) * (e.boss ? 480 : 320), dot: true, sz: 4 + Math.random() * 5, c: e.boss ? (i % 2 ? '#ff00dc' : '#111') : ['#7be36a', '#b6ff9e', '#4fbf45'][i % 3], t: now, life: 750 });
     fx.push({ x: e.x, y: e.y, ring: true, r: e.boss ? 120 : 46, c: e.boss ? '#ff7bf0' : '#e8ffe0', t: now, life: e.boss ? 600 : 350 });
     if (e.helpers > 1 && !e.boss) fx.push({ x: e.x, y: e.y - 40, text: `teamwork ×${e.helpers}`, c: '#ffd34d', t: now, life: 1100 });
-    if (mine) { fx.push({ x: e.x, y: e.y - 20, text: (snapB.p.get(myId) || {}).lvl >= 5 ? '+' + (e.xp || 1) + ' overtime' : '+' + (e.xp || 1) + ' XP', c: '#ffd34d', t: now + 120, life: 900, big: 0.9 }); shake(e.boss ? 14 : 4); sfx(e.boss ? 'boss' : 'kill'); }
+    if (mine) { fx.push({ x: e.x - 30, y: e.y - 8, text: (snapB.p.get(myId) || {}).lvl >= 5 ? '+' + (e.xp || 1) + ' overtime' : '+' + (e.xp || 1) + ' XP', c: '#ffd34d', t: now + 120, life: 900, big: 0.9 }); shake(e.boss ? 14 : 4); sfx(e.boss ? 'boss' : 'kill'); }
     else if (near(e)) sfx('kill', 0, 0.3);
   }
   else if (e.e === 'lvl' && e.id === myId) { sfx('lvl'); for (let i = 0; i < 30; i++) { const me = snapB.p.get(myId); if (me) fx.push({ x: me.x, y: me.y, vx: Math.cos(i / 30 * 6.28) * 200, vy: Math.sin(i / 30 * 6.28) * 200 - 80, dot: true, sz: 5, c: '#ffd34d', t: now, life: 800 }); } }
@@ -354,7 +426,7 @@ function onEvent(e) {
     else toast('FENCE REBUILT', 'The devs noticed. Everyone in Area 2 was sent back.');
   }
   else if (e.e === 'lag') { lagAt.set(e.id, now); const s2 = snapB.m.get(e.id); if (s2) fx.push({ x: s2.x, y: s2.y - 30, text: 'lag', c: '#9fd3ff', t: now, life: 600, big: 0.8 }); }
-  else if (e.e === 'tele') { teles.push({ x: e.x, y: e.y, r: e.r, t: now, ms: e.ms }); if (near(e)) sfx('warn'); }
+  else if (e.e === 'tele') { teles.push({ x: e.x, y: e.y, r: e.r, t: now, ms: e.ms, sq: e.sq }); if (near(e)) sfx('warn'); }
   else if (e.e === 'slam') {
     fx.push({ x: e.x, y: e.y, ring: true, r: e.r * 1.2, c: '#ff5c5c', t: now, life: 450 });
     for (let i = 0; i < 26; i++) { const a = i / 26 * 6.28; fx.push({ x: e.x + Math.cos(a) * e.r * 0.8, y: e.y + Math.sin(a) * e.r * 0.8, vx: Math.cos(a) * 140, vy: Math.sin(a) * 60 - 120, dot: true, sz: 5, c: '#b39b72', t: now, life: 600 }); }
@@ -368,8 +440,8 @@ function onEvent(e) {
   else if (e.e === 'finished') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 180, c: '#ffd700', t: now, life: 900 }); for (let i = 0; i < 60; i++) fx.push({ x: p2.x, y: p2.y, vx: (Math.random() - .5) * 600, vy: (Math.random() - .8) * 600, dot: true, sz: 5, c: '#ffd700', t: now, life: 1200 }); } if (e.id !== myId) toast('SOMEONE FINISHED SOMETHING', `${nameOf(e.id)} earned ${ITEMS[e.item].name}${e.n ? ' (#' + e.n + ' ever)' : ''}. Go look.`); }
   else if (e.e === 'spin') { const p2 = snapB.p.get(e.id); if (p2) { fx.push({ x: p2.x, y: p2.y, ring: true, r: 110, c: '#ffffff', t: now, life: 350 }); if (e.id === myId) { sfx('crit'); shake(e.hit ? 6 : 2); } } }
   else if (e.e === 'event') { toast(e.kind === 'rain' ? 'WORLD EVENT: SLIME RAIN' : e.kind === 'hotfix' ? 'HOTFIX DEPLOYED' : 'WORLD EVENT: BUG BOUNTY', e.kind === 'rain' ? 'A spawn loop is stuck. Double loot for 45 seconds.' : e.kind === 'hotfix' ? 'Double loot for 5 minutes while the devs look the other way.' : 'THE BUG is loose. Hit it before it escapes to production.'); sfx('fanfare'); shake(6); }
-  else if (e.e === 'patch') { const pz = ZONES.find((z) => z.at === e.n); if (pz) { paintWipe = { z: pz, t: now }; for (let i = 0; i < 80; i++) fx.push({ x: pz.x + Math.random() * pz.w, y: pz.y + Math.random() * pz.h, vx: 0, vy: -40, dot: true, sz: 4, c: ['#fff3a6', '#ffb3d9', '#b8e0ff', '#7fd06f'][i % 4], t: now + Math.random() * 1400, life: 900 }); }
-    toast(e.launch ? 'VERSION 1.0 HAS SHIPPED' : 'PATCH ' + e.name + ' SHIPPED', e.note + (pz ? ` Art pass: ${pz.name} is now painted.` : e.n === A2_PAINT_AT ? ' Art pass: Area 2 is painted.' : '')); sfx('fanfare'); if (e.launch) { shake(16); setTimeout(() => sfx('fanfare'), 600); } }
+  else if (e.e === 'patch') { const pz = ZONES.find((z) => z.at === e.n); if (e.plaque) plaques[e.n - 1] = e.plaque; myPart = null; setTimeout(() => send({ t: 'me' }), 400); if (pz) { paintWipe = { z: pz, t: now + 700 }; camFly = { x: pz.x + pz.w / 2, y: pz.y + pz.h / 2, t: now }; for (let i = 0; i < 80; i++) fx.push({ x: pz.x + Math.random() * pz.w, y: pz.y + Math.random() * pz.h, vx: 0, vy: -40, dot: true, sz: 4, c: ['#fff3a6', '#ffb3d9', '#b8e0ff', '#7fd06f'][i % 4], t: now + Math.random() * 1400, life: 900 }); }
+    e.art = pz ? `Art pass: ${pz.name} is now painted.` : e.n === A2_PAINT_AT ? 'Art pass: Area 2 is painted.' : ''; showCredits(e); sfx('fanfare'); if (e.launch) { shake(16); setTimeout(() => sfx('fanfare'), 600); } }
   else if (e.e === 'die' && e.id === myId) { toast('YOU DIED', 'Respawning at the only spawn point.'); sfx('die'); shake(10); }
 }
 function log(text, sys, who, said) {
@@ -377,8 +449,9 @@ function log(text, sys, who, said) {
   if (sys) { d.className = 'sys'; d.textContent = text; }
   else { const b = document.createElement('b'); b.textContent = who + ': '; d.append(b, said); }
   $('log').append(d);
-  while ($('log').children.length > (innerHeight < 760 || innerWidth < 500 ? 3 : 5)) $('log').firstChild.remove();
-  setTimeout(() => { d.style.opacity = 0; }, 9000); setTimeout(() => d.remove(), 10000);
+  const small = innerHeight < 760 || innerWidth < 500;
+  while ($('log').children.length > (small ? 2 : 4)) $('log').firstChild.remove();
+  setTimeout(() => { d.style.opacity = 0; }, small ? 4500 : 8000); setTimeout(() => d.remove(), small ? 5200 : 9000);
 }
 let toastT = 0;
 function toast(big, small) { const t = $('toast'); t.innerHTML = ''; t.append(big); if (small) { const s = document.createElement('small'); s.textContent = small; t.append(s); } t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, 2600); }
@@ -392,7 +465,7 @@ function sendHi() { send({ t: 'hi', key: myKey || undefined, name: myName, hue: 
 function onMe(m) {
   gotMe = true;
   myName = m.name; store.set('ut_name', myName); myHue = m.hue; store.set('ut_hue', myHue); look = m.look; store.set('ut_look', JSON.stringify(look));
-  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest; seen = m.seen || [];
+  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest; seen = m.seen || []; if (m.share && !(myPart && myPart.banked != null)) { myPart = { mine: m.shipk || 0, share: m.share }; setPart(); }
   $('coins').textContent = coins.toLocaleString();
   if ($('bagp').classList.contains('open')) renderBag();
   if ($('mep').classList.contains('open')) renderMe();
@@ -407,7 +480,8 @@ function onLoot(i, lx, ly, from, why) {
   if (auto) wearItem(it.slot, i);
   const rar = RARITY[it.r];
   const head = from ? `GIFT FROM ${from}: ` : why === 'shop' ? 'BOUGHT: ' : why === 'wish' ? 'WISH GRANTED: ' : why === 'goal' ? 'EARNED: ' : 'LOOT: ';
-  toast(head + it.name, n > 1 ? `Another one. You have ${n}. Stats: none.` : `${rar.name}. ${it.text}` + (auto ? ' (Wearing it.)' : ''));
+  if (n > 1 && it.r < 2 && !from && !why) log(`Another ${it.name}. You have ${n}.`, true);
+  else toast(head + it.name, n > 1 ? `Another one. You have ${n}. Stats: none.` : `${rar.name}. ${it.text}` + (auto ? ' (Wearing it.)' : ''));
   const me = snapB && snapB.p.get(myId), now = performance.now();
   if (me) {
     // the item pops out of the slime and lands on you
@@ -736,7 +810,13 @@ function drawBody(g, p, isMe, flash, now) {
 
 // ---------- input ----------
 function camera() {
-  const me = interp('p', myId) || SPAWN;
+  let me = interp('p', myId) || (myId == null ? { x: 1000 + Math.sin(performance.now() / 9000) * 600, y: 600 + Math.cos(performance.now() / 13000) * 250 } : SPAWN);
+  if (camFly) {
+    // a patch just shipped: fly to the zone being painted, watch it, fly back
+    const k = (performance.now() - camFly.t) / 3200;
+    if (k >= 1) camFly = null;
+    else { const e = k < 0.25 ? k / 0.25 : k > 0.75 ? (1 - k) / 0.25 : 1, ee = e * e * (3 - 2 * e); me = { x: me.x + (camFly.x - me.x) * ee, y: me.y + (camFly.y - me.y) * ee }; }
+  }
   return { x: Math.max(0, Math.min(W - vw, me.x - vw / 2)) - (vw > W ? (vw - W) / 2 : 0), y: Math.max(0, Math.min(H - vh, me.y - vh / 2)) - (vh > H ? (vh - H) / 2 : 0) };
 }
 cv.addEventListener('pointerdown', (ev) => {
@@ -744,8 +824,8 @@ cv.addEventListener('pointerdown', (ev) => {
   if ($('chatbox').classList.contains('open')) closeChat();
   const cam = camera(), wx = ev.clientX + cam.x, wy = ev.clientY + cam.y;
   let best = null, bd = 1e9;
-  if (snapB) for (const s of snapB.m.values()) { const q = interp('m', s.id); const r = radiusOf(s.kind) + (s.kind === BOSS2 || s.kind === RELEASE ? 40 : 22); const d = Math.hypot(q.x - wx, q.y - wy); if (d < r && d < bd) { bd = d; best = s; } }
-  if (!best && snapB) { for (const q of snapB.p.values()) { if (q.id === myId) continue; const qq = interp('p', q.id); if (qq && Math.hypot(qq.x - wx, qq.y - wy) < 18) { openCard(qq); return; } } }
+  if (snapB) for (const s of snapB.m.values()) { const q = interp('m', s.id); const r = radiusOf(s.kind) + (s.kind === BOSS2 || s.kind === RELEASE ? 40 : 28); const d = Math.hypot(q.x - wx, q.y - wy); if (d < r && d < bd) { bd = d; best = s; } }
+  if (!best && snapB) { for (const q of snapB.p.values()) { if (q.id === myId) continue; const qq = interp('p', q.id); if (qq && Math.hypot(qq.x - wx, qq.y - wy) < 14) { openCard(qq); return; } } }
   if (!best && !fence[2] && Math.abs(wx - FENCE_X) < 28) { send({ t: 'atk', id: 'fence' }); tapMark = { x: FENCE_X, y: wy, t: performance.now(), atk: true }; return; }
   if (best) { send({ t: 'atk', id: best.id }); tapMark = { x: best.x, y: best.y, t: performance.now(), atk: true }; }
   else { send({ t: 'go', x: wx, y: wy }); tapMark = { x: wx, y: wy, t: performance.now() }; }
@@ -894,7 +974,8 @@ function drawPlayer(p, now) {
   cx.restore();
 }
 function drawTag(p) {
-  const isMe = p.id === myId, tag = p.name + ' · ' + p.lvl + (p.ot ? '★' + p.ot : '');
+  if (p.tagX == null) return;
+  const isMe = p.id === myId, tag = p.name + ' · ' + p.lvl + (p.ot ? '★' + p.ot : '') + (p.more ? `  +${p.more}` : '');
   cx.font = (isMe ? '700 ' : '600 ') + '12px system-ui,sans-serif'; cx.textAlign = 'center';
   cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText(tag, p.tagX, p.tagY); cx.fillStyle = p.ot >= 100 ? `hsl(${(performance.now() / 8) % 360} 90% 70%)` : p.ot >= 25 ? '#ffd700' : isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, p.tagX, p.tagY);
   const ti = p.look && p.look[3];
@@ -906,9 +987,21 @@ const radiusOf = (k) => KR[k] || 16;
 const KNAME = { [RELEASE]: 'RELEASE_CANDIDATE_1.0', [BOSS]: 'MISSING_TEXTURE', [BOSS2]: 'FINAL_BOSS_v0.1', [TODO]: 'ENEMY_TODO', [FAST]: 'slime_fast (unbalanced)', [BIG]: 'SLIME_BIG_PLACEHOLDER', [LAG]: 'lag_slime (ping 999)', [BUG]: "THE BUG (won't fix)" };
 function drawSlime(s, now) {
   const k = s.kind, boss = k === BOSS, knight = k === BOSS2 || k === RELEASE, todo = k === TODO, r = radiusOf(k), wob = Math.sin(now / (k === FAST ? 70 : 160) + s.id) * 0.08;
-  const ht = now - (slimeHit.get(s.id) || -1e9), sq = ht < 160 ? (1 - ht / 160) * 0.35 : 0, fl = ht < 70;
+  const ht = now - (slimeHit.get(s.id) || -1e9), sq = ht < 160 ? (1 - ht / 160) * 0.35 : 0, fl0 = ht < 70;
   const lagged = k === LAG && now - (lagAt.get(s.id) || -1e9) < 250;
+  const wd = winds.get(s.id), wk = wd ? (now - wd.t) / wd.ms : -1;
+  if (wd && wk > 1.4) winds.delete(s.id);
   cx.save(); cx.translate(s.x + (ht < 120 || lagged ? (Math.random() - .5) * (lagged ? 10 : 4) : 0), s.y);
+  if (wk >= 0 && wk <= 1.1) {
+    // winding up a bite: a red reach ring, a "!" and the slime squashes down, flashing
+    const R = r + 24;
+    cx.strokeStyle = `rgba(255,60,60,${0.5 + 0.4 * wk})`; cx.lineWidth = wd.pid === myId ? 3 : 1.5; cx.setLineDash([6, 5]); cx.beginPath(); cx.arc(0, 0, R, 0, 7); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle = `rgba(255,60,60,${0.18 * wk})`; cx.beginPath(); cx.arc(0, 0, R * Math.min(1, wk), 0, 7); cx.fill();
+    cx.font = '900 22px system-ui,sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#000'; cx.strokeText('!', 0, -r - 14 - wk * 6); cx.fillStyle = '#ff4a4a'; cx.fillText('!', 0, -r - 14 - wk * 6);
+    const sqz = Math.min(1, wk) * 0.28; cx.scale(1 + sqz, 1 - sqz);
+  }
+  const windFlash = wk >= 0 && wk <= 1 && Math.floor(now / 70) % 2 === 0;
+  const fl = fl0 || windFlash;
   cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(0, r * 0.75, r, r * 0.35, 0, 0, 7); cx.fill();
   if (knight) {
     // FINAL_BOSS_v0.1: a knight stuck in a T-pose. The animator quit.
@@ -967,7 +1060,7 @@ function drawWorld(now) {
   cx.fillStyle = '#c9b27c'; cx.beginPath(); cx.arc(SPAWN.x, SPAWN.y, 110, 0, 7); cx.fill(); cx.fillRect(SPAWN.x, SPAWN.y - 4, FENCE_X - SPAWN.x, 48);
   for (const f of FLOWERS) { if (f.x > FENCE_X - 4) continue; cx.fillStyle = f.c; cx.fillRect(f.x, f.y, 3, 3); }
   for (const z of ZONES) {
-    const wiping = paintWipe && paintWipe.z === z, k = wiping ? Math.min(1, (now - paintWipe.t) / 1600) : 1;
+    const wiping = paintWipe && paintWipe.z === z, k = wiping ? Math.max(0, Math.min(1, (now - paintWipe.t) / 1600)) : 1;
     if (!zonePainted(z)) {
       cx.font = '900 30px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.10)'; cx.fillText('ART: TODO', z.x + z.w / 2, z.y + z.h / 2 - 8);
       cx.font = '700 14px ui-monospace,Consolas,monospace'; cx.fillText(`(painted in patch ${patchName(z.at - 1)})`, z.x + z.w / 2, z.y + z.h / 2 + 14);
@@ -1060,8 +1153,25 @@ function frame() {
   cx.translate(-Math.round(cam.x) + sx, -Math.round(cam.y) + sy);
   if (now - comboAt > 2500 && comboN) { comboN = 0; $('combo').style.opacity = 0; }
   drawWorld(now);
+  // plaques: each painted zone names the top 3 people who shipped it
+  for (const z of ZONES) {
+    const pl = plaques[z.at - 1]; if (!pl || patch < z.at) continue;
+    const px = z.x + z.w / 2, py = z.y + z.h - 46;
+    cx.fillStyle = '#6b4a2b'; cx.fillRect(px - 2, py, 4, 16);
+    cx.fillStyle = '#c9a227'; cx.strokeStyle = '#5a3e12'; cx.lineWidth = 2; cx.beginPath(); cx.roundRect(px - 34, py - 18, 68, 20, 4); cx.fill(); cx.stroke();
+    cx.font = '800 9px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = '#3a2808'; cx.fillText('SHIPPED BY', px, py - 5);
+    plaqueSpots.push({ x: px, y: py, text: pl.join(', ') });
+  }
   for (let i = teles.length - 1; i >= 0; i--) {
     const t = teles[i], k = (now - t.t) / t.ms; if (k >= 1) { teles.splice(i, 1); continue; }
+    if (t.sq) {
+      // MISSING_TEXTURE glitches a pink-and-black square onto the floor
+      const R = t.r, g = 17; cx.globalAlpha = 0.25 + 0.45 * k;
+      for (let yy = -R; yy < R; yy += g) for (let xx = -R; xx < R; xx += g) { cx.fillStyle = ((Math.floor((xx + R) / g) + Math.floor((yy + R) / g)) % 2) ? '#ff00dc' : '#111'; cx.fillRect(t.x + xx, t.y + yy, g, g); }
+      cx.globalAlpha = 1; cx.strokeStyle = '#ff00dc'; cx.lineWidth = 3; cx.setLineDash([10, 6]); cx.strokeRect(t.x - R, t.y - R, 2 * R, 2 * R); cx.setLineDash([]);
+      cx.fillStyle = 'rgba(255,255,255,.5)'; cx.fillRect(t.x - R * k, t.y - R * k, 2 * R * k, 2 * R * k);
+      continue;
+    }
     cx.fillStyle = `rgba(255,40,40,${0.12 + 0.18 * k})`; cx.beginPath(); cx.arc(t.x, t.y, t.r, 0, 7); cx.fill();
     cx.fillStyle = 'rgba(255,40,40,.35)'; cx.beginPath(); cx.arc(t.x, t.y, t.r * k, 0, 7); cx.fill();
     cx.strokeStyle = '#ff3b3b'; cx.lineWidth = 3; cx.setLineDash([10, 6]); cx.beginPath(); cx.arc(t.x, t.y, t.r, 0, 7); cx.stroke(); cx.setLineDash([]);
@@ -1070,6 +1180,16 @@ function frame() {
   if (trails.length > 400) trails.splice(0, trails.length - 400);
   if (tapMark && now - tapMark.t < 500) { const k = (now - tapMark.t) / 500; cx.strokeStyle = tapMark.atk ? `rgba(255,80,80,${1 - k})` : `rgba(255,255,255,${1 - k})`; cx.lineWidth = 2; cx.beginPath(); cx.arc(tapMark.x, tapMark.y, 6 + 14 * k, 0, 7); cx.stroke(); }
   const me = interp('p', myId);
+  // rare loot beams: a column of light where a Rare or better dropped
+  for (let i = beams.length - 1; i >= 0; i--) {
+    const b = beams[i], k = (now - b.t) / 2600; if (k >= 1) { beams.splice(i, 1); continue; }
+    const a = k < 0.1 ? k * 10 : 1 - (k - 0.1) / 0.9, w = 14 + Math.sin(now / 60) * 3;
+    const g = cx.createLinearGradient(0, b.y - 420, 0, b.y); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, b.c);
+    cx.globalAlpha = 0.75 * a; cx.fillStyle = g; cx.fillRect(b.x - w / 2, b.y - 420, w, 420); cx.globalAlpha = 1;
+    cx.strokeStyle = b.c; cx.lineWidth = 3 * a; cx.beginPath(); cx.ellipse(b.x, b.y, 26 + k * 30, 9 + k * 10, 0, 0, 7); cx.stroke();
+  }
+  // counter ready: a cyan ring around you until your next hit
+  if (me && counterOn && now - counterOn < 3000) { cx.strokeStyle = `rgba(127,232,255,${0.6 + 0.4 * Math.sin(now / 80)})`; cx.lineWidth = 3; cx.beginPath(); cx.arc(me.x, me.y, 26, 0, 7); cx.stroke(); }
   if (now - (frame.actAt || 0) > 250) { frame.actAt = now; updateActions(); }
   const draw = [];
   if (snapB) {
@@ -1080,13 +1200,16 @@ function frame() {
     cx.font = '700 12px system-ui,sans-serif';
     for (const p of ps) {
       const w = cx.measureText(p.name + ' · ' + p.lvl + (p.ot ? '★' + p.ot : '')).width + 6, th = p.look && p.look[3] > 0 ? 26 : 14;
-      let y = p.y + 30;
+      let y = p.y + 30, first = null, stacked = 0;
       for (let tries = 0; tries < 12; tries++) {
         const hit = placed.find((r) => Math.abs(r.x - p.x) < (r.w + w) / 2 && y < r.y + r.h && r.y < y + th);
         if (!hit) break;
+        first = first || hit; stacked++;
         y = hit.y + hit.h;
       }
-      placed.push({ x: p.x, y, w, h: th }); p.tagX = p.x; p.tagY = y;
+      // a crowd: after one stacked label, fold the rest into "Name +N" so it stays readable
+      if (stacked >= 2 && p.id !== myId && first.p) { first.p.more = (first.p.more || 0) + 1; p.tagX = null; }
+      else { placed.push({ x: p.x, y, w, h: th, p }); p.tagX = p.x; p.tagY = y; p.more = 0; }
       // set glow: 3+ pieces of one set
       const worn = new Set((p.wear || []).filter((i) => i >= 0).map((i) => ITEMS[i] && ITEMS[i].id));
       const st = SETS.find((x) => x.items.filter((id) => worn.has(id)).length >= 3); p.setGlow = st ? st.color : null; p.setName = st ? st.name : null;
@@ -1110,7 +1233,7 @@ function frame() {
   const coaching = me && snapB && !(stats.kills > 0) && !(me.kills > 0);
   if (coaching) {
     let best = null, bd = 1e9; for (const id of snapB.m.keys()) { const s = interp('m', id); const d = Math.hypot(s.x - me.x, s.y - me.y); if (d < bd && s.kind !== 98) { bd = d; best = s; } }
-    if (best) {
+    if (best && bd < Math.min(vw, vh) * 0.45) {
       const a = Math.atan2(best.y - me.y, best.x - me.x), r0 = 34, r1 = Math.max(r0 + 10, Math.min(bd - radiusOf(best.kind) - 8, 140)), bob = Math.sin(now / 160) * 4;
       cx.save(); cx.translate(me.x, me.y); cx.rotate(a); cx.strokeStyle = '#ffd34d'; cx.fillStyle = '#ffd34d'; cx.lineWidth = 4; cx.setLineDash([8, 6]);
       cx.beginPath(); cx.moveTo(r0, 0); cx.lineTo(r1 + bob, 0); cx.stroke(); cx.setLineDash([]);
@@ -1122,7 +1245,11 @@ function frame() {
   if (snapB) for (const [id, b] of bubbles) { const p = interp('p', id); if (!p || now > b.until) { bubbles.delete(id); continue; } bubble(p.x, p.y - 40, b.text); }
   if (me) {
     if (Math.hypot(me.x - GUY.x, me.y - GUY.y) < 150) { if (now - guyAt > 4200) { guyAt = now; guyLine = (guyLine + 1) % GUY_LINES.length; } bubble(GUY.x, GUY.y - 30, GUY_LINES[guyLine], '#fff6c9'); }
-    if (!coaching) for (const s of SIGNS) if (Math.hypot(me.x - s.x, me.y - s.y) < 110) bubble(s.x, s.y - 30, s.title + ': ' + s.text, '#f6e3c0');
+    const still = frame.lastMe && Math.hypot(frame.lastMe.x - me.x, frame.lastMe.y - me.y) < 0.5; frame.lastMe = { x: me.x, y: me.y };
+    if (still) frame.stillAt = frame.stillAt || now; else frame.stillAt = 0;
+    const settled = frame.stillAt && now - frame.stillAt > 350;
+    if (!coaching && settled) for (const s of SIGNS) if (Math.hypot(me.x - s.x, me.y - s.y) < 110) bubble(s.x, s.y - 30, s.title + ': ' + s.text, '#f6e3c0');
+    for (const q of plaqueSpots) if (Math.hypot(me.x - q.x, me.y - q.y) < 90) bubble(q.x, q.y - 26, 'Shipped by ' + q.text, '#f3e2a0');
     for (let i = 0; i < Math.min(patch, PATCHES.length); i++) { const s = PATCHES[i]; if (s.x != null && Math.hypot(me.x - s.x, me.y - s.y) < 90) bubble(s.x, s.y - 44, s.title + ': ' + s.text, '#dcecff'); }
   }
   // floating numbers and bits
@@ -1148,11 +1275,46 @@ function frame() {
     }
     cx.globalAlpha = 1;
   }
+  plaqueSpots.length = 0;
   cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // sparks from your kills flying into the patch bar
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const sp = sparks[i], k = (now - sp.t) / 650; if (k >= 1) { sparks.splice(i, 1); if (sp.c === '#6fd3ff') { $('pb').classList.remove('bump'); void $('pb').offsetWidth; $('pb').classList.add('bump'); } continue; }
+    const e = k * k, x = sp.sx + (sp.tx - sp.sx) * e, y = sp.sy + (sp.ty - sp.sy) * e - Math.sin(k * Math.PI) * 60;
+    cx.fillStyle = sp.c; cx.shadowColor = sp.c; cx.shadowBlur = 12; cx.beginPath(); cx.arc(x, y, 5, 0, 7); cx.fill(); cx.shadowBlur = 0;
+  }
   if (now - redFlash < 220) { cx.fillStyle = `rgba(255,40,40,${0.25 * (1 - (now - redFlash) / 220)})`; cx.fillRect(0, 0, vw, vh); }
   requestAnimationFrame(frame);
 }
-connect();
+// ---------- landing screen ("login") ----------
+async function loadStatus() {
+  try {
+    const st = await (await fetch('/status', { cache: 'no-store' })).json();
+    patch = st.patch; plaques = st.plaques || {};
+    $('lon').textContent = st.online; $('ltot').textContent = st.total.toLocaleString(); $('lpv').textContent = st.patch;
+    const nx = PATCHES[st.patch];
+    $('lpt').textContent = st.patch >= PATCHES.length ? `Version ${patchName(st.patch)} is out. Somehow.` : `Next patch: ${nx ? nx.tease : '?'} · ${st.kills}/${st.goal} kills`;
+    $('lpb').firstChild.style.width = Math.min(100, 100 * st.kills / st.goal) + '%';
+  } catch { $('lpt').textContent = 'The patch bar is loading. It is also unfinished.'; }
+}
+function showLogin() {
+  document.body.classList.add('landing');
+  if (myKey) { $('lnew').style.display = 'none'; $('lback').style.display = ''; $('lbname').textContent = myName; $('lfresh').style.display = ''; }
+  else $('lname').value = myName;
+  loadStatus(); showLogin.t = setInterval(loadStatus, 4000);
+}
+function play() {
+  const code = $('lcode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code) { myKey = code; store.set('ut_key', code); }
+  else if (!myKey) { const n = $('lname').value.trim(); if (n) { myName = n.slice(0, 16); store.set('ut_name', myName); } }
+  clearInterval(showLogin.t); $('login').classList.add('gone'); document.body.classList.remove('landing'); audio(); connect();
+}
+$('lplay').onclick = play;
+$('lname').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') play(); });
+$('lcode').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') play(); });
+$('lcodeL').onclick = (e) => { e.preventDefault(); $('lcodeR').style.display = ''; $('lcode').focus(); };
+$('lfresh').onclick = (e) => { e.preventDefault(); myKey = null; store.set('ut_key', ''); $('lback').style.display = 'none'; $('lnew').style.display = ''; $('lfresh').style.display = 'none'; $('lname').value = myName; };
+showLogin();
 requestAnimationFrame(frame);
 }
 </script>

@@ -13,6 +13,7 @@ export default {
       const stub = env.WORLD.get(env.WORLD.idFromName("world-1"));
       return stub.fetch(req); // Cloudflare adds CF-Connecting-IP; the world uses it only to stop tab floods and one-person report gangs
     }
+    if (url.pathname === "/status") return env.WORLD.get(env.WORLD.idFromName("world-1")).fetch(req); // the landing screen's live numbers
     return env.ASSETS.fetch(req);
   },
 };
@@ -83,10 +84,18 @@ export class World extends DurableObject {
       this.hof = (await ctx.storage.get("hof")) || {};               // Hall of Fame
       this.finCount = (await ctx.storage.get("finCount")) || {};     // how many people have earned each Finished item
       this.patchBy = (await ctx.storage.get("patchBy")) || {};       // bar kills per player for the patch being built
+      this.patchNext = (await ctx.storage.get("patchNext")) || {};   // kills banked toward the NEXT patch by players whose share is full
+      this.patchNames = (await ctx.storage.get("patchNames")) || {}; // display names of this patch's helpers (for the credits)
+      this.plaques = (await ctx.storage.get("plaques")) || {};       // patch number -> top 3 helpers, shown on a plaque in that zone
     });
   }
 
   async fetch(req) {
+    if (new URL(req.url).pathname === "/status") {
+      const online = [...this.players.values()].filter((p) => p.named && !p.bot).length;
+      return new Response(JSON.stringify({ online, patch: this.patch, kills: this.patchKills, goal: patchGoal(this.patch), total: this.total, plaques: this.plaques }),
+        { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+    }
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     server.accept();
@@ -117,7 +126,7 @@ export class World extends DurableObject {
       acct: null, keyHash: null, ipTag, emote: -1, emoteAt: 0, lastEmote: 0, lastRename: 0, loading: false,
     };
     this.players.set(id, p);
-    ws.send(JSON.stringify({ t: "you", id, total: this.total, w: W, h: H }));
+    ws.send(JSON.stringify({ t: "you", id, total: this.total, w: W, h: H, plaques: this.plaques }));
     // a socket that never says hi doesn't get to hold a slot
     setTimeout(() => { if (this.players.get(id) === p && !p.named && !p.loading) { try { ws.close(4001, "no hi"); } catch {} this.leave(p); } }, 10000);
     ws.addEventListener("message", (ev) => this.onMsg(p, ev.data));
@@ -423,6 +432,7 @@ export class World extends DurableObject {
     p.acct.bag[it.id] = (p.acct.bag[it.id] || 0) + 1; p.dirty = true;
     if (why !== "shop" && why !== "wish" && why !== "goal" && !p.acct.seen.includes(it.id)) p.acct.seen.push(it.id); // found from a drop yourself (not bought, wished or gifted)
     this.tell(p, { t: "loot", item, x: Math.round(from.x), y: Math.round(from.y), why });
+    if (it.r >= 2 && why !== "shop" && why !== "gift") this.events.push({ e: "beam", x: Math.round(from.x), y: Math.round(from.y), r: it.r });
     if (it.r >= 2) this.events.push({ e: "sys", text: it.r === 4
       ? `${p.name} EARNED ${it.name}. It's FINISHED. Fully. Everyone stop and look.`
       : it.r === 3 ? `${p.name} found ${it.name} (Unfinished). It doesn't exist. They're wearing it anyway.`
@@ -539,13 +549,13 @@ export class World extends DurableObject {
       }
     }
     const K = kindOf(kind);
-    const hp = kind === BOSS ? 30 + 12 * n : kind === BOSS2 ? 40 + 15 * n : kind === RELEASE ? 150 + 25 * n : K.hp;
+    const hp = kind === BOSS ? 100 + 150 * n : kind === BOSS2 ? 120 + 170 * n : kind === RELEASE ? 300 + 220 * n : K.hp;
     const s = { id, x, y, hp, kind, r: K.r, dmg: K.dmg, hitters: new Set(), dmgBy: new Map() };
     if (kind === BUG) { s.until = Date.now() + 90000; }
     s.max = s.hp; s.hopAt = Date.now() + Math.random() * 1500; s.vx = 0; s.vy = 0; s.hopEnd = 0; s.lastBite = 0;
-    s.lagAt = Date.now() + 2000 + Math.random() * 1500; s.slamAt = Date.now() + 3000; s.slam = null;
+    s.lagAt = Date.now() + 2000 + Math.random() * 1500; s.slamAt = Date.now() + 3000; s.slam = null; s.wind = null; s.slams = 0;
     this.slimes.set(id, s);
-    if (kind === BOSS) this.events.push({ e: "sys", text: "MISSING_TEXTURE has spawned. The artist left before finishing it. Team up." });
+    if (kind === BOSS) this.events.push({ e: "sys", text: "MISSING_TEXTURE has spawned. It glitches pink squares onto the ground: step out of them. Team up." });
     if (kind === RELEASE) this.events.push({ e: "sys", text: `RELEASE_CANDIDATE_1.0 has spawned. Version 1.0 only ships if ${LAUNCH_CROWD} or more people really help beat it. Call everyone.` });
     if (kind === BOSS2) this.events.push({ e: "sys", text: "FINAL_BOSS_v0.1 has spawned. It only has one attack. Step out of the red circle." });
     return s;
@@ -595,8 +605,9 @@ export class World extends DurableObject {
             p.combo = now - p.lastHit < 2500 && (p.comboOn === tid || p.comboFree) ? p.combo + 1 : 1;
             p.comboOn = tid; p.comboFree = false;
             p.lastHit = now;
-            const crit = p.combo % 5 === 0 || Math.random() < 0.08;
-            const dmg = (1 + Math.floor((p.lvl - 1) / 2)) * (crit ? 2 : 1);
+            const counter = p.counterUntil > now; if (counter) p.counterUntil = 0;
+            const crit = counter || p.combo % 5 === 0 || Math.random() < 0.08;
+            const dmg = (1 + Math.floor((p.lvl - 1) / 2)) * (counter ? 3 : crit ? 2 : 1);
             this.stat(p, "combo", 0, p.combo); this.questProgress(p, "combo", 0, p.combo);
             if (t.fence) {
               this.fence.hp -= dmg; this.stat(p, "fence", 1); this.questProgress(p, "fence", 1);
@@ -604,7 +615,7 @@ export class World extends DurableObject {
               if (this.fence.hp <= 0) this.openArea2(p);
             } else {
               t.hp -= dmg; t.hitters.add(p.id); t.dmgBy.set(p.id, (t.dmgBy.get(p.id) || 0) + dmg); t.lastBy = p.id;
-              this.events.push({ e: "hit", by: p.id, id: t.id, dmg, crit, combo: p.combo });
+              this.events.push({ e: "hit", by: p.id, id: t.id, dmg, crit, combo: p.combo, counter: counter ? 1 : 0 });
               if (t.hp <= 0) this.kill(t);
             }
           }
@@ -629,7 +640,8 @@ export class World extends DurableObject {
 
     // slimes
     for (const s of this.slimes.values()) {
-      if (now >= s.hopAt) {
+      if (s.wind) { s.hopEnd = 0; s.hopAt = Math.max(s.hopAt, now + 300); } // winding up a bite: it holds still
+      else if (now >= s.hopAt) {
         const K = kindOf(s.kind);
         let near = null, nd = isBoss(s.kind) ? 320 : s.kind === FAST ? 240 : 190;
         for (const p of alive) { if (p.deadUntil) continue; const d = dist(p, s); if (d < nd) { nd = d; near = p; } }
@@ -654,22 +666,27 @@ export class World extends DurableObject {
       }
       // FINAL_BOSS_v0.1 has one attack: a slam with a red warning circle you can step out of.
       // ENEMY_TODO in Area 2 does a small version ("AI: TODO, so it just jumps on you").
-      if (s.kind === BOSS2 || s.kind === RELEASE || s.kind === TODO) {
-        const small = s.kind === TODO, R = small ? 60 : 105, hurt = small ? 2 : 3;
+      if (s.kind === BOSS || s.kind === BOSS2 || s.kind === RELEASE || s.kind === TODO) {
+        const small = s.kind === TODO, sq = s.kind === BOSS, R = small ? 60 : sq ? 85 : 105, hurt = small || sq ? 2 : 3;
         if (!s.slam && now >= s.slamAt) {
           let tgt = null, td = small ? 260 : 420;
           for (const p of alive) { if (p.deadUntil) continue; const d = dist(p, s); if (d < td) { td = d; tgt = p; } }
           if (tgt) {
             s.slam = { x: Math.round(tgt.x), y: Math.round(tgt.y), at: now + (small ? 900 : 1300) };
-            this.events.push({ e: "tele", x: s.slam.x, y: s.slam.y, r: R, ms: small ? 900 : 1300 });
+            this.events.push({ e: "tele", x: s.slam.x, y: s.slam.y, r: R, ms: small ? 900 : 1300, sq: sq ? 1 : 0 });
+            // every third glitch, MISSING_TEXTURE "loads" a ring of half-rendered slimes around itself
+            if (sq && ++s.slams % 3 === 0) {
+              for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; const c = this.spawnSlime(false, false, Math.floor(Math.random() * SLIME_NAMES.length), { x: s.x + Math.cos(a) * 90, y: s.y + Math.sin(a) * 90 }); c.hp = c.max = 2; }
+              this.events.push({ e: "sys", text: "MISSING_TEXTURE is loading assets. Four of them loaded halfway." });
+            }
           }
-          s.slamAt = now + (small ? 3500 + Math.random() * 2500 : 3800);
+          s.slamAt = now + (small ? 3500 + Math.random() * 2500 : sq ? 3200 : 3800);
         }
         if (s.slam && now >= s.slam.at) {
           const sl = s.slam; s.slam = null; let hit = 0;
           if (small) { s.x = clamp(sl.x, FENCE_X + 30, W - 30); s.y = clamp(sl.y, 30, H - 30); } // it lands where it aimed
           for (const p of alive) {
-            if (p.deadUntil || dist(p, SPAWN) < SAFE || Math.hypot(p.x - sl.x, p.y - sl.y) > R) continue;
+            if (p.deadUntil || dist(p, SPAWN) < SAFE || (sq ? Math.max(Math.abs(p.x - sl.x), Math.abs(p.y - sl.y)) > R : Math.hypot(p.x - sl.x, p.y - sl.y) > R)) continue;
             p.hp -= hurt; p.lastHurt = now; p.combo = 0; hit++;
             this.events.push({ e: "ow", id: p.id, dmg: hurt });
             if (p.hp <= 0) { p.hp = 0; p.deadUntil = now + 3000; p.target = null; this.events.push({ e: "die", id: p.id }); this.stat(p, "deaths", 1); }
@@ -685,19 +702,30 @@ export class World extends DurableObject {
       // the spawn circle is a safe zone: slimes respect the tutorial
       const sd = Math.hypot(s.x - SPAWN.x, s.y - SPAWN.y), keep = SAFE + s.r;
       if (sd < keep) { const k = keep / (sd || 1); s.x = SPAWN.x + (s.x - SPAWN.x) * k; s.y = SPAWN.y + (s.y - SPAWN.y) * k; }
-      // bite anyone touching it
-      if (now - s.lastBite > 1300) {
-        for (const p of alive) {
-          if (p.deadUntil || dist(p, SPAWN) < SAFE) continue;
-          if (s.dmg > 0 && dist(p, s) < s.r + 14) {
-            s.lastBite = now; p.hp -= s.dmg; p.lastHurt = now; p.combo = 0;
+      // biting: a slime squashes and flashes for about half a second first. Step out of reach and it misses,
+      // and your next hit is a guaranteed counter crit (your combo stays alive).
+      if (s.wind) {
+        if (now >= s.wind.at) {
+          const p = this.players.get(s.wind.pid); s.wind = null; s.lastBite = now;
+          if (p && !p.deadUntil && dist(p, SPAWN) >= SAFE && dist(p, s) < s.r + 24) {
+            p.hp -= s.dmg; p.lastHurt = now; p.combo = 0;
             this.events.push({ e: "ow", id: p.id, dmg: s.dmg });
             if (p.hp <= 0) {
               p.hp = 0; p.deadUntil = now + 3000; p.target = null;
               this.events.push({ e: "die", id: p.id }); this.stat(p, "deaths", 1);
             }
-            break;
+          } else if (p && !p.deadUntil) {
+            p.counterUntil = now + 3000; this.stat(p, "dodges", 1);
+            this.events.push({ e: "dodge", id: p.id, sid: s.id });
           }
+        }
+      } else if (s.dmg > 0 && now - s.lastBite > 1300) {
+        for (const p of alive) {
+          if (p.deadUntil || dist(p, SPAWN) < SAFE || dist(p, s) >= s.r + 14) continue;
+          const ms = s.kind === FAST ? 450 : isBoss(s.kind) ? 650 : 550;
+          s.wind = { at: now + ms, pid: p.id };
+          this.events.push({ e: "wind", id: s.id, pid: p.id, ms });
+          break;
         }
       }
     }
@@ -730,29 +758,46 @@ export class World extends DurableObject {
     // the patch bar: each kill moves it once, credited to the biggest helper who still has share left.
     // Nobody can fill more than their share, so a patch always needs several different people. Bots never count.
     const goal = patchGoal(this.patch), share = Math.ceil(goal * patchShare(this.patch));
+    const nextShare = Math.ceil(patchGoal(this.patch + 1) * patchShare(this.patch + 1));
     if (this.patchKills < goal) {
-      let capped = null, credited = false;
+      let capped = null, credited = false, warm = null;
       for (const pid of [...s.hitters].filter(earned).sort((x, y) => (s.dmgBy.get(y) || 0) - (s.dmgBy.get(x) || 0))) {
-        const p = this.players.get(pid); if (!p || !p.acct || p.bot || (p.acct.stats.kills || 0) < BAR_MIN_KILLS) continue;
-        const c = this.patchBy[p.keyHash] || 0, ipk = "ip:" + (p.ipTag || p.keyHash), ci = this.patchBy[ipk] || 0;
-        // one internet connection can fill at most 3 shares (a household is fine; ten tabs of throwaway accounts are not)
-        if (c >= share || ci >= share * 3) { capped = capped || p; continue; }
-        this.patchBy[p.keyHash] = c + 1; this.patchBy[ipk] = ci + 1; this.patchKills++; credited = true;
+        const p = this.players.get(pid); if (!p || !p.acct || p.bot) continue;
+        if ((p.acct.stats.kills || 0) < BAR_MIN_KILLS) { warm = warm || p; continue; }
+        const c = this.patchBy[p.keyHash] || 0;
+        if (c >= share) { capped = capped || p; continue; }
+        this.patchBy[p.keyHash] = c + 1; this.patchKills++; credited = true; this.patchNames[p.keyHash] = p.name;
         if (!p.acct.pk || p.acct.pk.p !== this.patch) p.acct.pk = { p: this.patch, k: 0, need: Math.ceil(share / 2) };
         p.acct.pk.k++;
+        this.tell(p, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), mine: c + 1, share });
         break;
       }
-      if (!credited && capped && capped.barCapTold !== this.patch) {
-        capped.barCapTold = this.patch;
-        this.tell(capped, { t: "err", text: `You've filled your whole share of this patch (${share} kills). Nobody can finish a patch alone: it needs ${helpersNeeded(this.patch)}+ people. Your kills still earn coins and loot.` });
+      if (!credited && capped) {
+        // your share is full: extra kills are banked for the next patch, so no kill is wasted
+        const b = this.patchNext[capped.keyHash] || 0;
+        if (b < nextShare) this.patchNext[capped.keyHash] = b + 1;
+        this.patchNames[capped.keyHash] = capped.name;
+        this.tell(capped, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), mine: share, share, banked: Math.min(nextShare, b + 1), nextShare });
+        if (capped.barCapTold !== this.patch) {
+          capped.barCapTold = this.patch;
+          this.tell(capped, { t: "err", text: `Your part of this patch is done (${share} kills). It needs ${helpersNeeded(this.patch)} people, so nobody ships one alone. Your extra kills now count toward the NEXT patch.` });
+        }
+      } else if (!credited && warm) {
+        this.tell(warm, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), warm: warm.acct.stats.kills || 0, need: BAR_MIN_KILLS });
       }
     }
     if (this.patchKills >= goal && this.patch !== LAUNCH) {
       const n = this.patch;
-      this.patchKills = 0; this.patch++; this.patchBy = {};
+      const credits = Object.entries(this.patchBy).sort((x, y) => y[1] - x[1]).map(([k, c]) => [this.patchNames[k] || "someone", c]);
+      this.plaques[n] = credits.slice(0, 3).map((c) => c[0]);
+      this.patchKills = 0; this.patch++; this.patchBy = {}; this.patchNames = {};
+      // banked kills from players whose share was full move into the new patch (still capped by its share)
+      const ns = Math.ceil(patchGoal(this.patch) * patchShare(this.patch));
+      for (const [k, v] of Object.entries(this.patchNext)) { const c = Math.min(v, ns); this.patchBy[k] = c; this.patchKills += c; }
+      this.patchNext = {};
       const note = PATCHES[n] ? PATCHES[n].note : HOTFIX_NOTES[(n - PATCHES.length) % HOTFIX_NOTES.length];
       if (!PATCHES[n] && !this.event) { this.event = { kind: "hotfix", until: Date.now() + 300000 }; this.events.push({ e: "event", kind: "hotfix", ms: 300000 }); }
-      this.events.push({ e: "patch", n: this.patch, name: patchName(n), note });
+      this.events.push({ e: "patch", n: this.patch, name: patchName(n), note, credits: credits.slice(0, 14), helpers: credits.length, plaque: this.plaques[n] });
       this.events.push({ e: "sys", text: `Patch ${patchName(n)} shipped. ${note}` });
       for (const q of this.players.values()) this.creditShip(q);
     }
@@ -807,9 +852,10 @@ export class World extends DurableObject {
     } else if (s.kind === RELEASE) {
       const crowd = [...s.hitters].filter((pid) => { const q = this.players.get(pid); return q && q.acct && !q.bot && earned(pid); });
       const places = new Set(crowd.map((pid) => this.players.get(pid).ipTag || pid)).size;
-      if (crowd.length >= LAUNCH_CROWD && places >= 4 && this.patch === LAUNCH) {
-        this.patch++; this.patchKills = 0; this.patchBy = {}; this.dirty = true;
-        this.events.push({ e: "patch", n: this.patch, name: "1.0", note: "VERSION 1.0 IS OUT. The game is finished. (It is not. But it shipped.)", launch: true });
+      if (crowd.length >= LAUNCH_CROWD && places >= 3 && this.patch === LAUNCH) {
+        this.plaques[LAUNCH] = crowd.slice(0, 3).map((pid) => this.players.get(pid).name);
+        this.patch++; this.patchKills = 0; this.patchBy = {}; this.patchNext = {}; this.patchNames = {}; this.dirty = true;
+        this.events.push({ e: "patch", n: this.patch, name: "1.0", note: "VERSION 1.0 IS OUT. The game is finished. (It is not. But it shipped.)", launch: true, credits: crowd.map((pid) => [this.players.get(pid).name, 1]), helpers: crowd.length, plaque: this.plaques[LAUNCH] });
         this.events.push({ e: "sys", text: `${crowd.length} people beat RELEASE_CANDIDATE_1.0 together. VERSION 1.0 HAS SHIPPED. Everyone who helped is now a Day One player.` });
         for (const pid of crowd) { const q = this.players.get(pid); this.stat(q, "launch", 1); }
         for (const q of this.players.values()) this.creditShip(q);
@@ -908,7 +954,7 @@ export class World extends DurableObject {
   save(force = false) {
     if (!this.dirty && !force) return;
     this.dirty = false; this.lastSave = Date.now();
-    const put = { total: this.total, patch: this.patch, patchKills: this.patchKills, finCount: this.finCount, patchBy: this.patchBy };
+    const put = { total: this.total, patch: this.patch, patchKills: this.patchKills, finCount: this.finCount, patchBy: this.patchBy, patchNext: this.patchNext, patchNames: this.patchNames, plaques: this.plaques };
     if (this.hofDirty) { put.hof = this.hof; this.hofDirty = false; }
     this.ctx.storage.put(put);
   }
