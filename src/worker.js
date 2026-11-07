@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { ITEMS, RARITY, DROP_CHANCE, rollItem, PATCHES, patchGoal, patchName, unlocked, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SETS,
   PRICES, shopStock, WISH_COST, QUESTS, EPIC_BOSSES, isBound, GIFT_MIN_KILLS, GIFTS_PER_DAY, GOALS, SHIP_KILLS, DAY_KILLS,
-  otNeed, SCRAP, RAINBOW_OT, SPIN_CD, HOTFIX_NOTES, SECRETS, LAUNCH, LAUNCH_CROWD, patchShare, helpersNeeded, BAR_MIN_KILLS, A2_DROP, SKILLS, skillCost, swingMs, spinCd, dashCd, gearOf } from "../public/items.js";
+  otNeed, SCRAP, RAINBOW_OT, SPIN_CD, HOTFIX_NOTES, SECRETS, LAUNCH, LAUNCH_CROWD, patchShare, helpersNeeded, BAR_MIN_KILLS, A2_DROP, SKILLS, skillCost, swingMs, spinCd, dashCd, LEVEL_CAP, dmgAt, gearOf, UPG_MAX, upgSpares, upgCost } from "../public/items.js";
 import { isBad, cleanChat, isReserved } from "./filter.js";
 
 // One shared world for everyone. The browser connects to /ws; everything else is the static page.
@@ -28,7 +28,6 @@ const TICK = 100;            // ms
 const MAX_PLAYERS = 60;
 const SPEED = 170;           // px/s
 const REACH = 46;            // attack distance (edge to edge-ish)
-const LEVEL_CAP = 5;
 const SLIME_NAMES = ["SLIME_FINAL", "SLIME_FINAL_v2", "SLIME_FINAL_v2_ACTUAL", "slime (placeholder)", "slime_copy(3)", "SLIME_DO_NOT_SHIP"];
 const BOSS = 99;             // kind index for the boss
 const BOSS2 = 97;            // the second boss, FINAL_BOSS_v0.1; bosses take turns
@@ -50,7 +49,8 @@ const kindOf = (k) => KIND[k] || KIND.normal;
 // danger rings: the farther from spawn, the tougher the slimes and the better the rewards. Area 2 is the outermost ring.
 const RING_R = [380, 720];
 const ringOf = (x, y) => x > FENCE_X ? 3 : Math.hypot(x - SPAWN.x, y - SPAWN.y) < RING_R[0] ? 0 : Math.hypot(x - SPAWN.x, y - SPAWN.y) < RING_R[1] ? 1 : 2;
-const TIER = [{ hp: 1, dmg: 0, xp: 1, drop: 1 }, { hp: 2, dmg: 0, xp: 2, drop: 1.4 }, { hp: 4, dmg: 1, xp: 3, drop: 2 }, { hp: 1.5, dmg: 0, xp: 2, drop: 1 }];
+// going farther pays more per minute, not just per kill: rewards grow faster than slime HP, and rarer loot only drops out there
+const TIER = [{ hp: 1, dmg: 0, xp: 1, drop: 0.6, maxR: 0 }, { hp: 2, dmg: 0, xp: 3, drop: 1, maxR: 1 }, { hp: 4, dmg: 1, xp: 8, drop: 1.5, maxR: 2 }, { hp: 1.5, dmg: 0, xp: 4, drop: 1.2, maxR: 2 }];
 const BOSS_EVERY = 40;       // all-time kills between bosses
 const BUG = 13;              // Bug Bounty event target: runs away, drops Rare+ for everyone who hits it
 KIND[BUG] = { hp: 25, r: 14, dmg: 0, sp: [160, 210], xp: 4 };
@@ -65,7 +65,7 @@ const DAY = 86400000;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-const xpFor = (lvl) => lvl * lvl * 8; // xp needed to leave this level (Lv 5 takes ~10 minutes, not 2)
+const xpFor = (lvl) => lvl * lvl * 8; // xp needed to leave this level: Lv 5 in ~10 minutes near spawn, Lv 15 takes a couple of hours out in the rings
 
 export class World extends DurableObject {
   constructor(ctx, env) {
@@ -241,6 +241,8 @@ export class World extends DurableObject {
       this.spin(p, now);
     } else if (m.t === "dash") {
       this.dash(p, now, m);
+    } else if (m.t === "upgrade") {
+      if (Number.isInteger(m.item)) this.upgrade(p, m.item);
     } else if (m.t === "skill") {
       this.buySkill(p, m.k);
     } else if (m.t === "hof") {
@@ -304,7 +306,7 @@ export class World extends DurableObject {
     this.tell(p, { t: "me", name: a.name, hue: a.hue, look: a.look, bag: a.bag, wear: a.wear, coins: a.coins, stats: this.statsOf(a), titles: a.tu,
       quest: a.quest, muted: a.mutedUntil > Date.now(), seen: a.seen,
       dayk: a.dk && a.dk.d === today ? a.dk.k : 0,
-      sk: a.sk || {}, shipk: this.patchBy[p.keyHash] || 0, share: this.shareOf(this.patch) });
+      sk: a.sk || {}, up: a.up || {}, shipk: this.patchBy[p.keyHash] || 0, share: this.shareOf(this.patch) });
   }
 
   async rename(p, raw) {
@@ -394,7 +396,7 @@ export class World extends DurableObject {
     p.dirty = true; this.checkTitles(p);
   }
 
-  g(p) { if (!p.gear || p.gearKey !== p.wear.join()) { p.gear = gearOf(p.wear); p.gearKey = p.wear.join(); } return p.gear; }
+  g(p) { const up = (p.acct && p.acct.up) || {}, key = p.wear.join() + JSON.stringify(up); if (!p.gear || p.gearKey !== key) { p.gear = gearOf(p.wear, up); p.gearKey = key; } return p.gear; }
 
   fullSets(p) {
     const worn = new Set(p.wear.filter((i) => i >= 0).map((i) => ITEMS[i].id));
@@ -481,7 +483,7 @@ export class World extends DurableObject {
     if (p.acct.coins < cost) return this.tell(p, { t: "err", text: `A wish costs ${cost} coins. You have ${p.acct.coins}.` });
     p.acct.coins -= cost;
     this.events.push({ e: "wish", id: p.id });
-    this.grant(p, rollItem(Math.random, false), FOUNTAIN_AT, "wish");
+    this.grant(p, rollItem(Math.random, false, false, 1), FOUNTAIN_AT, "wish");
   }
 
   // recycle one spare copy of an item for coins (a coin sink for duplicates... well, a coin source. Sinks are on the roadmap.)
@@ -504,6 +506,22 @@ export class World extends DurableObject {
   shareOf(n) { return Math.ceil(patchGoal(n) / this.needed(n)); }
 
   sk(p, k) { return (p.acct && p.acct.sk && p.acct.sk[k]) || 0; }
+
+  // spare copies + coins -> a stronger version of a held item's one effect
+  upgrade(p, i) {
+    const it = ITEMS[i]; if (!it || !it.fx || !p.acct) return;
+    if (!unlocked(this.patch, "shop")) return this.tell(p, { t: "err", text: "The shop isn't open yet. It ships in a patch." });
+    if (dist(p, SHOP_AT) > 170) return this.tell(p, { t: "err", text: "Walk over to the SHOP first." });
+    const a = p.acct; a.up = a.up || {}; const lv = a.up[it.id] || 0, have = a.bag[it.id] || 0;
+    if (lv >= UPG_MAX) return this.tell(p, { t: "err", text: `${it.name} is at v${lv + 1}. That's the final version. (It isn't.)` });
+    const sp = upgSpares(lv), cost = upgCost(it.r, lv);
+    if (have < 1 + sp) return this.tell(p, { t: "err", text: `v${lv + 2} needs ${sp} spare ${it.name}${sp > 1 ? "s" : ""} (you have ${Math.max(0, have - 1)}). Keep finding copies.` });
+    if (a.coins < cost) return this.tell(p, { t: "err", text: `v${lv + 2} costs ${cost.toLocaleString()} coins. You have ${a.coins.toLocaleString()}.` });
+    a.coins -= cost; a.bag[it.id] = have - sp; a.up[it.id] = lv + 1; p.dirty = true; this.stat(p, "upgrades", 1);
+    this.tell(p, { t: "err", text: `${it.name} is now v${lv + 2}. Changelog: it hits different.` });
+    this.events.push({ e: "skill", id: p.id });
+    this.sendMe(p);
+  }
 
   buySkill(p, k) {
     const S = SKILLS.find((x) => x.k === k); if (!S || !p.acct) return;
@@ -531,7 +549,7 @@ export class World extends DurableObject {
       let best = null, bd = 60;
       for (const o of this.slimes.values()) { if (o === t) continue; const dd = dist(o, t) - o.r; if (dd < bd) { bd = dd; best = o; } }
       if (best) {
-        const sd = Math.max(1, Math.floor(dmg / 2));
+        const sd = Math.max(1, Math.floor(dmg * G.cleave));
         best.hp -= sd; best.hitters.add(p.id); best.dmgBy.set(p.id, (best.dmgBy.get(p.id) || 0) + sd); best.lastBy = p.id; best.lastHitAt = now;
         this.events.push({ e: "hit", by: p.id, id: best.id, dmg: sd, crit: false, combo: p.combo, cleave: 1 });
         if (best.hp <= 0) this.kill(best);
@@ -557,7 +575,7 @@ export class World extends DurableObject {
   spin(p, now) {
     if (p.deadUntil || dist(p, SPAWN) < SAFE || now - (p.lastSpin || 0) < spinCd(this.sk(p, "spin"))) return;
     p.lastSpin = now;
-    const dmg = 1 + Math.floor((p.lvl - 1) / 2);
+    const dmg = dmgAt(p.lvl);
     let hit = 0;
     for (const t of [...this.slimes.values()]) {
       if (dist(p, t) > t.r + 80 + 8 * this.sk(p, "spin") + this.g(p).spin) continue;
@@ -578,7 +596,7 @@ export class World extends DurableObject {
       a.coins += Q.coins; a.quest = null; p.dirty = true;
       this.tell(p, { t: "err", text: `Quest done. +${Q.coins} coins. NPC_02 says: "QUEST_COMPLETE_STRING".` });
       this.events.push({ e: "quest", id: p.id });
-      if (Math.random() < 0.35) this.grant(p, rollItem(Math.random, false), NPC_AT, "quest");
+      if (Math.random() < 0.35) this.grant(p, rollItem(Math.random, false, false, 1), NPC_AT, "quest");
       this.sendMe(p);
       return;
     }
@@ -697,7 +715,7 @@ export class World extends DurableObject {
             p.lastHit = now - p.lastHit < swing + 100 ? p.lastHit + swing : now;
             const counter = p.counterUntil > now; if (counter) p.counterUntil = 0;
             const G = this.g(p), crit = counter || p.combo % 5 === 0 || Math.random() < 0.08 + G.crit;
-            const base = 1 + Math.floor((p.lvl - 1) / 2), dmg = counter ? Math.round(base * 3 * (1 + 0.3 * this.sk(p, "counter"))) : base * (crit ? 2 : 1);
+            const base = dmgAt(p.lvl), dmg = counter ? Math.round(base * 3 * (1 + 0.3 * this.sk(p, "counter"))) : base * (crit ? 2 : 1);
             this.stat(p, "combo", 0, p.combo); this.questProgress(p, "combo", 0, p.combo);
             if (t.fence) {
               this.fence.hp -= dmg; this.stat(p, "fence", 1); this.questProgress(p, "fence", 1);
@@ -928,7 +946,7 @@ export class World extends DurableObject {
       if (helped) p.kills++;
       if (p.acct && !helped && !big) { /* a drive-by tap on a normal slime: XP only */ }
       else if (p.acct) {
-        const coins = !helped ? 1 : boss ? 10 : s.kind === BUG ? 8 : s.kind === TODO ? 6 : xp;
+        const coins = !helped ? 1 : boss ? 10 : s.kind === BUG ? 8 : s.kind === TODO ? Math.max(6, xp) : xp;
         const G = this.g(p), gc = helped ? G.coin : 0;
         if (helped && G.heal && !p.deadUntil) p.hp = Math.min(p.max, p.hp + G.heal);
         p.acct.coins += coins + gc; this.tell(p, { t: "coins", n: p.acct.coins, add: coins + gc, x: Math.round(s.x), y: Math.round(s.y) });
@@ -940,7 +958,7 @@ export class World extends DurableObject {
         if (big && !helped) this.tell(p, { t: "err", text: `You barely touched it, so you got a participation coin. Do at least ${need} damage for real loot.` });
         else if (s.kind === TODO && Math.random() < A2_DROP) { const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].a2); this.grant(p, pool[Math.floor(Math.random() * pool.length)], s, "area2"); }
         else if (s.kind === TODO && (p.acct.stats.boss || 0) >= EPIC_BOSSES && Math.random() < 0.03) this.grant(p, (() => { const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 3); return pool[Math.floor(Math.random() * pool.length)]; })(), s, "area2");
-        else this.loot(p, big || (s.tier === 2 && Math.random() < 0.12), Math.min(0.9, evx * T.drop * (s.kind === TODO ? 0.5 : (s.kind === BIG || s.kind === LAG) ? 0.35 : DROP_CHANCE)), s);
+        else this.loot(p, big || (s.tier === 2 && Math.random() < 0.08), Math.min(0.9, evx * T.drop * (s.kind === TODO ? 0.5 : (s.kind === BIG || s.kind === LAG) ? 0.35 : DROP_CHANCE)), s, T.maxR);
       }
       if (p.lvl >= LEVEL_CAP) {
         // past the cap, XP goes into unpaid overtime: a slow, endless flex
@@ -994,9 +1012,9 @@ export class World extends DurableObject {
     if (!hasBoss && this.total % BOSS_EVERY === 0) this.spawnSlime(true);
   }
 
-  loot(p, boss, chance, s) {
+  loot(p, boss, chance, s, maxR = 2) {
     if (!boss && Math.random() >= chance) return;
-    this.grant(p, rollItem(Math.random, boss, boss && (p.acct.stats.boss || 0) >= EPIC_BOSSES), s);
+    this.grant(p, rollItem(Math.random, boss, boss && (p.acct.stats.boss || 0) >= EPIC_BOSSES, maxR), s);
   }
 
   // ---------- world events: Slime Rain and Bug Bounty, every 7 to 12 minutes once patched in ----------

@@ -75,7 +75,7 @@ export const ITEMS = [
   { id: "tcaution", slot: "trail", r: 2, a2: true, name: "Trail: Caution Tape (Area 2)", text: "Leaves DO NOT CROSS behind you. Everyone crosses." },
   { id: "oobcone", slot: "hat", r: 2, hid: true, name: "Out-of-Bounds Cone", text: "Left past the edge of the world by a dev. Proof you looked where you weren't supposed to." },
 ];
-export const A2_DROP = 0.06; // ENEMY_TODO's chance to drop an Area 2 item
+export const A2_DROP = 0.12; // ENEMY_TODO's chance to drop an Area 2 item
 
 export const SLOTS = ["hat", "hand", "back", "pet", "trail"];
 export const SLOT_NAMES = { hat: "Hats", hand: "Held", back: "Backs", pet: "Pets", trail: "Trails" };
@@ -113,14 +113,14 @@ export const GOALS = {
   realhat: { k: "kills", n: 10000, how: "Kill 10,000 slimes" },
   realsword: { k: "boss", n: 150, how: "Really help kill 150 bosses" },
   realcape: { k: "days", n: 14, how: "Play on 14 different days (50+ kills each day)" },
-  realpet: { k: "found", n: 40, how: "Find 40 different items from drops (no shop, wishes or gifts)" },
+  realpet: { k: "found", n: 45, how: "Find 45 different items from drops (no shop, wishes or gifts)" },
   realtrail: { k: "ships", n: 8, how: "Help ship 8 patches (fill at least half your share of each)" },
 };
 export const SHIP_KILLS = 100, DAY_KILLS = 50;
 export const SCRAP = [2, 6, 25];           // coins for recycling one spare copy, by rarity
 export const RAINBOW_OT = 10;              // rainbow body color unlocks at overtime ★10
 export const SPIN_CD = 6000;               // spin attack cooldown (ms)
-// Overtime rewards: past level 5, every 10 stars unlocks a look everyone can see. Earned only by playing.
+// Overtime rewards: past level 15, every 10 stars unlocks a look everyone can see. Earned only by playing.
 export const OT_REWARDS = [
   { ot: 10, name: "Rainbow body color", text: "Pick it in 🎨 Me." },
   { ot: 20, name: "Sweat drops", text: "You visibly work too hard." },
@@ -140,21 +140,23 @@ export const SECRETS = [
   { x: 300, y: 700, text: "You tried to swim in the pond spot. It's a rectangle. You're standing on it." },
   { x: 2375, y: 1175, text: "Area 2's far corner: the dev room. One chair, one mug, one sticky note: 'fix later'." },
 ];
-// Overtime: after level 5 your XP keeps going into unpaid overtime levels, shown as a star next to your level.
+// Overtime: after level 15 your XP keeps going into unpaid overtime levels, shown as a star next to your level.
 export const otNeed = (ot) => 40 + 10 * ot;
 
 // Pick an item. rnd() returns 0..1. Bosses drop Rare, or Unfinished (epic) for veterans (epic = true).
 // Finished items never drop: see GOALS.
-export function rollItem(rnd, boss, epic = false) {
+// maxR: the rarest tier this place can drop (near spawn: commons only; the far rings and Area 2: up to Rare)
+export function rollItem(rnd, boss, epic = false, maxR = 2) {
   if (boss) {
     const tier = epic && rnd() < 0.08 ? 3 : rnd() < 0.45 ? 2 : 1; // Rare is a 45% chance, not a guarantee
     const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === tier && !ITEMS[i].a2 && !ITEMS[i].hid);
     return pool[Math.floor(rnd() * pool.length)];
   }
-  const total = ITEMS.reduce((s, it) => s + (it.a2 || it.hid ? 0 : RARITY[it.r].weight), 0);
+  const ok = (it) => !it.a2 && !it.hid && it.r <= maxR;
+  const total = ITEMS.reduce((s, it) => s + (ok(it) ? RARITY[it.r].weight : 0), 0);
   let x = rnd() * total;
   for (let i = 0; i < ITEMS.length; i++) {
-    x -= ITEMS[i].a2 || ITEMS[i].hid ? 0 : RARITY[ITEMS[i].r].weight;
+    x -= ok(ITEMS[i]) ? RARITY[ITEMS[i].r].weight : 0;
     if (x < 0) return i;
   }
   return 0;
@@ -201,6 +203,9 @@ export const SHAPES = ["Circle", "Default Cube", "Blob", "Low-poly"];
 export const EYES = ["Dots", "Sleepy", "Angry", "Googly", "Visor", "Placeholder X"];
 export const MOUTHS = ["None", "Smile", "Grumpy", "Open", "Mustache"];
 // Titles shown under your name. "need" is checked in your browser against your lifetime stats.
+// levels: 15 of them, each slower than the last. Damage goes up every 3 levels.
+export const LEVEL_CAP = 15;
+export const dmgAt = (lvl) => 1 + Math.floor((lvl - 1) / 3);
 export const FINDABLE = ITEMS.filter((it) => it.r < 4).length; // Finished items are earned by goals, not found
 export const TITLES = [
   { name: "Fresh Install", need: null },
@@ -210,14 +215,14 @@ export const TITLES = [
   { name: "Fence Enjoyer", need: { fence: 60 }, how: "Hit the Area 2 fence 60 times" },
   { name: "Combo Goblin", need: { combo: 20 }, how: "Land a 20-hit combo" },
   { name: "Hat Haver", need: { found: 5 }, how: "Find 5 different items" },
-  { name: "Max Level (it's 5)", need: { lvl: 5 }, how: "Reach level 5" },
+  { name: "Max Level (it's 15)", need: { lvl: 15 }, how: "Reach level 15" },
   { name: "Boss Puncher", need: { boss: 1 }, how: "Help kill MISSING_TEXTURE" },
   { name: "Collector", need: { found: 30 }, how: "Find 30 different items from drops" },
   { name: "Completionist", need: { found: FINDABLE }, how: `Find all ${FINDABLE} findable items yourself` },
   { name: "Set Enjoyer", need: { sets: 1 }, how: "Wear a full set" },
   { name: "Mostly Finished", need: { kills: 1000 }, how: "Kill 1,000 slimes" },
   { name: "Raid Regular", need: { boss: 25 }, how: "Really help kill 25 bosses" },
-  { name: "Unpaid Overtime", need: { ot: 10 }, how: "Reach overtime ★10 (keep playing past level 5)" },
+  { name: "Unpaid Overtime", need: { ot: 10 }, how: "Reach overtime ★10 (keep playing past level 15)" },
   { name: "Crunch Survivor", need: { ot: 50 }, how: "Reach overtime ★50" },
   { name: "Regular", need: { days: 7 }, how: "Play on 7 different days (50+ kills each)" },
   { name: "Shipped It", need: { ships: 5 }, how: "Help ship 5 patches" },
@@ -279,13 +284,29 @@ export const DEV_NOTES = [
 ];
 
 // what your worn gear adds up to. wear = item indexes per slot (-1 = empty). Server and client both use this.
-export function gearOf(wear) {
+// upgrading a held item: spare copies + coins make its one effect stronger (v1 -> v2 -> v3 -> v4).
+// The name gets a version number, like every real file on a dev's desktop.
+export const UPG_MAX = 3;
+export const upgSpares = (lvl) => lvl + 1;                          // spare copies used for the next version
+export const upgCost = (r, lvl) => [30, 60, 150, 300, 300][r] * (lvl + 1) * (lvl + 1); // coins for the next version
+export const upgMul = (lvl) => 1 + 0.5 * (lvl || 0);                // v1 = x1, v2 = x1.5, v3 = x2, v4 = x2.5
+export const fxText = (fx, lvl) => {
+  const m = upgMul(lvl);
+  return { knock: `Hits knock the slime back ${Math.round(26 * m)}px.`, reach: `Reaches ${Math.round(22 * m)}px farther.`, crit: `+${Math.round(6 * m)}% crit chance.`,
+    heal: `Heal ${Math.round(m)} HP every kill.`, coin: `+${Math.round(m)} coin${Math.round(m) > 1 ? "s" : ""} every kill.`, quick: `Swings ${Math.round(60 * m)}ms faster.`,
+    cleave: `Each hit also splashes 1 nearby slime for ${Math.round(100 * Math.min(1, 0.5 + 0.17 * (lvl || 0)))}% damage.`, stun: `Crits make the slime wait ${(m).toFixed(1)}s longer before its next bite.` }[fx];
+};
+
+export function gearOf(wear, up = {}) {
   const g = { reach: 0, crit: 0, quick: 0, heal: 0, coin: 0, knock: 0, cleave: 0, stun: 0, dash: 0, spin: 0, counter: 3000, armor: 0, sets: [] };
   const worn = new Set();
   for (const i of wear || []) {
     const it = ITEMS[i]; if (!it) continue; worn.add(it.id);
-    if (it.fx === "reach") g.reach += 22; else if (it.fx === "crit") g.crit += 0.06; else if (it.fx === "quick") g.quick += 60;
-    else if (it.fx) g[it.fx] += 1;
+    const m = upgMul(up[it.id]);
+    if (it.fx === "reach") g.reach += 22 * m; else if (it.fx === "crit") g.crit += 0.06 * m; else if (it.fx === "quick") g.quick += 60 * m;
+    else if (it.fx === "heal" || it.fx === "coin") g[it.fx] += Math.round(m);
+    else if (it.fx === "cleave") g.cleave = Math.min(1, 0.5 + 0.17 * (up[it.id] || 0));
+    else if (it.fx) g[it.fx] += m;
   }
   for (const st of SETS) {
     if (!st.items.every((id) => worn.has(id))) continue;
