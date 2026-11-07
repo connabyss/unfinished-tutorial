@@ -34,11 +34,11 @@
   #toast { position:fixed; left:50%; top:30%; transform:translate(-50%,-50%); text-align:center; font-weight:800; font-size:22px; text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.6); pointer-events:none; opacity:0; transition:opacity .3s; width:min(90%,520px); }
   #pb.bump { animation:bump .25s; } @keyframes bump { 50% { transform:scaleY(1.9); filter:brightness(1.6); } }
   #mypart { font-size:12px; opacity:.85; margin-top:3px; color:#bfe3ff; }
-  #credits { position:fixed; inset:0; pointer-events:none; display:none; overflow:hidden; }
+  #credits { position:fixed; left:0; right:0; top:0; height:40%; pointer-events:none; display:none; overflow:hidden; -webkit-mask-image:linear-gradient(#000 75%, transparent); mask-image:linear-gradient(#000 75%, transparent); }
   #credits.on { display:block; }
   #credroll { position:absolute; left:50%; transform:translateX(-50%); top:100%; text-align:center; font-weight:800; font-size:16px; line-height:1.5; text-shadow:0 2px 0 #000,0 0 10px rgba(0,0,0,.8); width:min(90%,420px); animation:roll 7s linear forwards; }
   #credroll h3 { font-size:22px; margin:0 0 6px; color:#ffd34d; } #credroll small { display:block; font-weight:600; opacity:.85; margin-top:8px; }
-  @keyframes roll { from { top:58%; } to { top:-70%; } }
+  @keyframes roll { from { top:30%; } to { top:-160%; } }
   #toast small { display:block; font-size:15px; font-weight:600; margin-top:6px; }
   #bag { position:relative; }
   #mebtn.pulse { animation:pulse 1s infinite; } @keyframes pulse { 50% { background:#ffd34d; } }
@@ -372,7 +372,7 @@ function showCredits(e) {
   const h = document.createElement('h3'); h.textContent = e.launch ? 'VERSION 1.0' : 'PATCH ' + e.name + ' SHIPPED'; roll.append(h);
   const nt = document.createElement('div'); nt.style.cssText = 'font-size:14px;font-weight:600;margin-bottom:10px'; nt.textContent = e.note + (e.art ? ' ' + e.art : ''); roll.append(nt);
   const sub = document.createElement('div'); sub.textContent = e.helpers ? `Made by ${e.helpers} ${e.helpers === 1 ? 'person' : 'people'}. Thanks to:` : 'Thanks to: nobody, apparently.'; roll.append(sub);
-  for (const [n, c] of (e.credits || [])) { const d = document.createElement('div'); d.textContent = e.launch ? n : `${n} · ${c} kills`; roll.append(d); }
+  for (const [n, c] of (e.credits || []).slice(0, 8)) { const d = document.createElement('div'); d.textContent = e.launch ? n : `${n} · ${c} kills`; roll.append(d); }
   const dn = document.createElement('small'); dn.textContent = 'DEV NOTE: ' + DEV_NOTES[(e.n - 1) % DEV_NOTES.length]; roll.append(dn);
   if (e.art) { const mu = document.createElement('small'); mu.textContent = 'Music: one more layer got finished. Listen.'; roll.append(mu); }
   const sm = document.createElement('small'); sm.textContent = 'Bench legs: not included. Lighting: TODO.'; roll.append(sm);
@@ -385,7 +385,7 @@ function onEvent(e) {
   if (e.e === 'sys') log(e.text, true);
   else if (e.e === 'say' && isMuted(snapB.p.get(e.id))) {}
   else if (e.e === 'say') { bubbles.set(e.id, { text: e.text, until: now + 6000 }); log(null, false, nameOf(e.id), e.text); }
-  else if (e.e === 'wind') { winds.set(e.id, { t: now, ms: e.ms, pid: e.pid }); if (e.pid === myId) { sfx('warn'); if ((stats.dodges || 0) < 3) { dodgeHint = now; $('dash').classList.add('hint'); } } }
+  else if (e.e === 'wind') { winds.set(e.id, { t: now, ms: e.ms, pid: e.pid }); if (e.pid === myId) { sfx('warn'); if ((stats.dodges || 0) < 3) { dodgeHint = now; $('dash').classList.add('hint'); clearTimeout(dodgeHint.t); setTimeout(() => $('dash').classList.remove('hint'), 2200); } } }
   else if (e.e === 'dash') { const p = snapB.p.get(e.id); if (p) for (let i = 0; i < 10; i++) fx.push({ x: p.x, y: p.y, vx: -Math.cos(e.a) * (60 + i * 25), vy: -Math.sin(e.a) * (60 + i * 25) - 60, dot: true, sz: 4, c: '#dff6ff', t: now, life: 300 }); if (e.id === myId) sfx('click'); }
   else if (e.e === 'skill') { const p = snapB.p.get(e.id); if (p) { fx.push({ x: p.x, y: p.y, ring: true, r: 90, c: '#7fe8ff', t: now, life: 600 }); if (e.id === myId) sfx('title'); } }
   else if (e.e === 'dodge') {

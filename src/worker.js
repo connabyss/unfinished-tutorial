@@ -525,7 +525,7 @@ export class World extends DurableObject {
 
   // spin attack: hit everything nearby, on a cooldown
   spin(p, now) {
-    if (p.deadUntil || now - (p.lastSpin || 0) < spinCd(this.sk(p, "spin"))) return;
+    if (p.deadUntil || dist(p, SPAWN) < SAFE || now - (p.lastSpin || 0) < spinCd(this.sk(p, "spin"))) return;
     p.lastSpin = now;
     const dmg = 1 + Math.floor((p.lvl - 1) / 2);
     let hit = 0;
@@ -596,7 +596,7 @@ export class World extends DurableObject {
     const s = { id, x, y, hp, kind, r: K.r, dmg: K.dmg, hitters: new Set(), dmgBy: new Map() };
     if (kind === BUG) { s.until = Date.now() + 90000; }
     s.max = s.hp; s.hopAt = Date.now() + Math.random() * 1500; s.vx = 0; s.vy = 0; s.hopEnd = 0; s.lastBite = 0;
-    s.lagAt = Date.now() + 2000 + Math.random() * 1500; s.slamAt = Date.now() + 3000; s.slam = null; s.wind = null; s.slams = 0;
+    s.lagAt = Date.now() + 2000 + Math.random() * 1500; s.slamAt = Date.now() + 3000; s.slam = null; s.wind = null; s.slams = 0; s.lastHitAt = Date.now();
     this.slimes.set(id, s);
     if (kind === BOSS) this.events.push({ e: "sys", text: "MISSING_TEXTURE has spawned. It glitches pink squares onto the ground: step out of them. Team up." });
     if (kind === RELEASE) this.events.push({ e: "sys", text: `RELEASE_CANDIDATE_1.0 has spawned. Version 1.0 only ships if ${LAUNCH_CROWD} or more people really help beat it. Call everyone.` });
@@ -650,7 +650,9 @@ export class World extends DurableObject {
         const d = dist(p, t);
         if (d <= t.r + REACH) {
           gx = null;
-          if (now - p.lastHit >= swingMs(this.sk(p, "swing"))) {
+          // no fighting from inside the tutorial circle: slimes can't bite you there, so you can't hit them either
+          if (dist(p, SPAWN) < SAFE) { if (now - (p.safeTold || 0) > 8000) { p.safeTold = now; this.tell(p, { t: "err", text: "No fighting inside the tutorial circle. Step out to swing." }); } }
+          else if (now - p.lastHit >= swingMs(this.sk(p, "swing"))) {
             // keep swinging without a break to build a combo; every 5th hit in a combo is a crit
             const tid = t.fence ? "fence" : t.id;
             p.combo = now - p.lastHit < 2500 && (p.comboOn === tid || p.comboFree) ? p.combo + 1 : 1;
@@ -665,7 +667,7 @@ export class World extends DurableObject {
               this.events.push({ e: "fhit", by: p.id, y: Math.round(t.y), dmg, crit, combo: p.combo });
               if (this.fence.hp <= 0) this.openArea2(p);
             } else {
-              t.hp -= dmg; t.hitters.add(p.id); t.dmgBy.set(p.id, (t.dmgBy.get(p.id) || 0) + dmg); t.lastBy = p.id;
+              t.hp -= dmg; t.hitters.add(p.id); t.dmgBy.set(p.id, (t.dmgBy.get(p.id) || 0) + dmg); t.lastBy = p.id; t.lastHitAt = now;
               this.events.push({ e: "hit", by: p.id, id: t.id, dmg, crit, combo: p.combo, counter: counter ? 1 : 0 });
               if (t.hp <= 0) this.kill(t);
             }
@@ -701,6 +703,13 @@ export class World extends DurableObject {
         if (near) { ang = Math.atan2(near.y - s.y, near.x - s.x) + (s.kind === BUG ? Math.PI + (Math.random() - 0.5) : 0); sp = K.sp[1]; }
         s.vx = Math.cos(ang) * sp; s.vy = Math.sin(ang) * sp;
         s.hopEnd = now + 450; s.hopAt = now + (s.kind === FAST || s.kind === BUG ? 550 : near ? 900 : 1400 + Math.random() * 1600);
+      }
+      // a boss nobody is fighting gets bored and unloads after 2 minutes, so the next one can spawn
+      if ((s.kind === BOSS || s.kind === BOSS2) && now - s.lastHitAt > 120000) {
+        this.slimes.delete(s.id);
+        this.events.push({ e: "sys", text: `${s.kind === BOSS ? "MISSING_TEXTURE" : "FINAL_BOSS_v0.1"} got no attention for 2 minutes and unloaded itself. Memory freed.` });
+        this.events.push({ e: "kill", id: s.id, x: Math.round(s.x), y: Math.round(s.y), boss: false, helpers: 0, total: this.total, by: [], xp: 0, escaped: true });
+        continue;
       }
       if (s.kind === BUG && now > s.until) {
         this.slimes.delete(s.id);
