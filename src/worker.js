@@ -46,6 +46,10 @@ const KIND = {
   [RELEASE]: { r: 54, dmg: 3, sp: [50, 75], xp: 10 },
 };
 const kindOf = (k) => KIND[k] || KIND.normal;
+// danger rings: the farther from spawn, the tougher the slimes and the better the rewards. Area 2 is the outermost ring.
+const RING_R = [380, 720];
+const ringOf = (x, y) => x > FENCE_X ? 3 : Math.hypot(x - SPAWN.x, y - SPAWN.y) < RING_R[0] ? 0 : Math.hypot(x - SPAWN.x, y - SPAWN.y) < RING_R[1] ? 1 : 2;
+const TIER = [{ hp: 1, dmg: 0, xp: 1, drop: 1 }, { hp: 2, dmg: 0, xp: 2, drop: 1.4 }, { hp: 4, dmg: 1, xp: 3, drop: 2 }, { hp: 1.5, dmg: 0, xp: 2, drop: 1 }];
 const BOSS_EVERY = 40;       // all-time kills between bosses
 const BUG = 13;              // Bug Bounty event target: runs away, drops Rare+ for everyone who hits it
 KIND[BUG] = { hp: 25, r: 14, dmg: 0, sp: [160, 210], xp: 4 };
@@ -88,6 +92,7 @@ export class World extends DurableObject {
       this.patchNext = (await ctx.storage.get("patchNext")) || {};   // kills banked toward the NEXT patch by players whose share is full
       this.patchNames = (await ctx.storage.get("patchNames")) || {}; // display names of this patch's helpers (for the credits)
       this.plaques = (await ctx.storage.get("plaques")) || {};
+      if (await ctx.storage.get("a2perm")) { this.fence.hp = 0; this.fence.openUntil = 8.64e15; this.fence.perm = true; }
       // (plaques: patch number -> top 3 helpers, shown on a plaque in that zone)
     });
   }
@@ -576,9 +581,10 @@ export class World extends DurableObject {
   spawnSlime(boss = false, todo = false, kind = null, at = null) {
     const id = this.nextId++;
     let x, y;
-    for (let i = 0; i < 20; i++) {
+    const wantRing = boss ? -1 : (() => { const q = Math.random(); return q < 0.4 ? 0 : q < 0.75 ? 1 : 2; })();
+    for (let i = 0; i < 40; i++) {
       x = 80 + Math.random() * (FENCE_X - 160); y = 80 + Math.random() * (H - 160);
-      if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > (boss ? 300 : 160)) break;
+      if (Math.hypot(x - SPAWN.x, y - SPAWN.y) > (boss ? 300 : 160) && (wantRing < 0 || ringOf(x, y) === wantRing)) break;
     }
     if (todo) { x = FENCE_X + 120 + Math.random() * (W - FENCE_X - 200); y = 80 + Math.random() * (H - 160); }
     if (at) { x = clamp(at.x + (Math.random() - 0.5) * 50, 30, FENCE_X - 30); y = clamp(at.y + (Math.random() - 0.5) * 50, 30, H - 30); }
@@ -587,13 +593,16 @@ export class World extends DurableObject {
       if (boss) kind = unlocked(this.patch, "boss2") && Math.floor(this.total / BOSS_EVERY) % 2 === 0 ? BOSS2 : BOSS;
       else if (todo) kind = TODO;
       else {
-        const r = unlocked(this.patch, "enemies") ? Math.random() : 1;
-        kind = r < 0.12 ? FAST : r < 0.22 ? BIG : r < 0.3 ? LAG : Math.floor(Math.random() * SLIME_NAMES.length);
+        // each ring has its own mix: the meadow by spawn is plain slimes; the far ring has the weird ones
+        const ring = ringOf(x, y), q = unlocked(this.patch, "enemies") ? Math.random() : 1;
+        kind = ring === 1 ? (q < 0.2 ? FAST : q < 0.32 ? BIG : -1) : ring === 2 ? (q < 0.22 ? FAST : q < 0.47 ? BIG : q < 0.67 ? LAG : -1) : -1;
+        if (kind === -1) kind = Math.floor(Math.random() * SLIME_NAMES.length);
       }
     }
     const K = kindOf(kind);
     const hp = kind === BOSS ? 100 + 150 * n : kind === BOSS2 ? 120 + 170 * n : kind === RELEASE ? 300 + 220 * n : K.hp;
-    const s = { id, x, y, hp, kind, r: K.r, dmg: K.dmg, hitters: new Set(), dmgBy: new Map() };
+    const tier = isBoss(kind) || kind === BUG ? 0 : ringOf(x, y), T = TIER[tier];
+    const s = { id, x, y, hp: isBoss(kind) ? hp : Math.round(hp * T.hp), kind, r: K.r, dmg: K.dmg + (K.dmg ? T.dmg : 0), tier, hitters: new Set(), dmgBy: new Map() };
     if (kind === BUG) { s.until = Date.now() + 90000; }
     s.max = s.hp; s.hopAt = Date.now() + Math.random() * 1500; s.vx = 0; s.vy = 0; s.hopEnd = 0; s.lastBite = 0;
     s.lagAt = Date.now() + 2000 + Math.random() * 1500; s.slamAt = Date.now() + 3000; s.slam = null; s.wind = null; s.slams = 0; s.lastHitAt = Date.now();
@@ -767,8 +776,19 @@ export class World extends DurableObject {
       // and your next hit is a guaranteed counter crit (your combo stays alive).
       if (s.wind) {
         if (now >= s.wind.at) {
-          const p = this.players.get(s.wind.pid); s.wind = null; s.lastBite = now;
-          if (p && !p.deadUntil && dist(p, SPAWN) >= SAFE && dist(p, s) < s.r + 24) {
+          const p = this.players.get(s.wind.pid), aoe = s.wind.aoe; s.wind = null; s.lastBite = now;
+          if (aoe) {
+            // SLIME_BIG_PLACEHOLDER's ground pound hits everyone in the ring, not just its target: dash out or spread out
+            let hitTarget = false;
+            for (const q of alive) {
+              if (q.deadUntil || dist(q, SPAWN) < SAFE || dist(q, s) >= aoe) continue;
+              if (q === p) hitTarget = true;
+              q.hp -= s.dmg; q.lastHurt = now; q.combo = 0; this.events.push({ e: "ow", id: q.id, dmg: s.dmg });
+              if (q.hp <= 0) { q.hp = 0; q.deadUntil = now + 3000; q.target = null; this.events.push({ e: "die", id: q.id }); this.stat(q, "deaths", 1); }
+            }
+            this.events.push({ e: "pound", id: s.id, r: aoe });
+            if (p && !hitTarget && !p.deadUntil) { p.counterUntil = now + 3000; this.stat(p, "dodges", 1); this.events.push({ e: "dodge", id: p.id, sid: s.id }); }
+          } else if (p && !p.deadUntil && dist(p, SPAWN) >= SAFE && dist(p, s) < s.r + 24) {
             p.hp -= s.dmg; p.lastHurt = now; p.combo = 0;
             this.events.push({ e: "ow", id: p.id, dmg: s.dmg });
             if (p.hp <= 0) {
@@ -783,9 +803,9 @@ export class World extends DurableObject {
       } else if (s.dmg > 0 && now - s.lastBite > 1300) {
         for (const p of alive) {
           if (p.deadUntil || dist(p, SPAWN) < SAFE || dist(p, s) >= s.r + 14) continue;
-          const ms = s.kind === FAST ? 450 : isBoss(s.kind) ? 650 : 550;
-          s.wind = { at: now + ms, pid: p.id };
-          this.events.push({ e: "wind", id: s.id, pid: p.id, ms });
+          const ms = s.kind === FAST ? 450 : s.kind === BIG ? 800 : isBoss(s.kind) ? 650 : 550, aoe = s.kind === BIG ? s.r + 46 : 0;
+          s.wind = { at: now + ms, pid: p.id, aoe };
+          this.events.push({ e: "wind", id: s.id, pid: p.id, ms, r: aoe || undefined });
           break;
         }
       }
@@ -864,7 +884,7 @@ export class World extends DurableObject {
       for (const q of this.players.values()) this.creditShip(q);
     }
     const boss = isBoss(s.kind);
-    const xp = kindOf(s.kind).xp;
+    const T = TIER[s.tier || 0], xp = kindOf(s.kind).xp * T.xp;
     for (const pid of s.hitters) {
       const p = this.players.get(pid);
       if (!p) continue;
@@ -883,7 +903,7 @@ export class World extends DurableObject {
         if (big && !helped) this.tell(p, { t: "err", text: `You barely touched it, so you got a participation coin. Do at least ${need} damage for real loot.` });
         else if (s.kind === TODO && Math.random() < A2_DROP) { const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].a2); this.grant(p, pool[Math.floor(Math.random() * pool.length)], s, "area2"); }
         else if (s.kind === TODO && (p.acct.stats.boss || 0) >= EPIC_BOSSES && Math.random() < 0.03) this.grant(p, (() => { const pool = ITEMS.map((it, i) => i).filter((i) => ITEMS[i].r === 3); return pool[Math.floor(Math.random() * pool.length)]; })(), s, "area2");
-        else this.loot(p, big, Math.min(0.9, evx * (s.kind === TODO ? 0.5 : (s.kind === BIG || s.kind === LAG) ? 0.35 : DROP_CHANCE)), s);
+        else this.loot(p, big || (s.tier === 2 && Math.random() < 0.12), Math.min(0.9, evx * T.drop * (s.kind === TODO ? 0.5 : (s.kind === BIG || s.kind === LAG) ? 0.35 : DROP_CHANCE)), s);
       }
       if (p.lvl >= LEVEL_CAP) {
         // past the cap, XP goes into unpaid overtime: a slow, endless flex
@@ -994,10 +1014,11 @@ export class World extends DurableObject {
 
   openArea2(p) {
     const f = this.fence;
-    f.hp = 0; f.openUntil = Date.now() + AREA2_OPEN_MS;
+    f.hp = 0; f.openUntil = 8.64e15; f.perm = true; this.dirty = true; // once the server breaks it, it stays broken
+    this.ctx.storage.put("a2perm", true);
     for (const q of this.players.values()) if (q.target === "fence") q.target = null;
     this.events.push({ e: "area2", open: true, by: p.id });
-    this.events.push({ e: "sys", text: `${p.name} landed the last hit. The fence is down. AREA 2 is open for 5 minutes before the devs notice. Its slimes drop better loot.` });
+    this.events.push({ e: "sys", text: `${p.name} landed the last hit. The fence is down. AREA 2 is open FOR GOOD. The devs gave up on the fence. Its slimes are tough and drop better loot.` });
   }
 
   closeArea2() {
@@ -1029,10 +1050,10 @@ export class World extends DurableObject {
       if (!q.bot) online++;
       p.push([q.id, Math.round(q.x), Math.round(q.y), q.hp, q.max, q.lvl, q.deadUntil ? 1 : 0, q.name, q.hue, q.lvl >= LEVEL_CAP && q.acct ? q.acct.otxp : q.xp, q.lvl >= LEVEL_CAP && q.acct ? otNeed(q.acct.stats.ot || 0) : xpFor(q.lvl), q.kills, q.wear, q.look, q.bot ? 1 : 0, q.acct ? q.acct.stats.ot || 0 : 0, q.acct ? q.acct.pid : ""]);
     }
-    for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind]);
+    for (const s of this.slimes.values()) m.push([s.id, Math.round(s.x), Math.round(s.y), s.hp, s.max, s.kind, s.tier || 0]);
     const ev = this.event ? [this.event.kind, Math.ceil((this.event.until - Date.now()) / 1000)] : null;
     const msg = JSON.stringify({ t: "s", p, m, e: this.events, n: online, total: this.total, pa: [this.patch, this.patchKills, patchGoal(this.patch), Object.keys(this.patchBy).filter((k) => !k.startsWith("ip:")).length, this.needed(this.patch)], ev,
-      fz: [this.fence.hp, this.fence.max, this.fence.openUntil ? Math.ceil((this.fence.openUntil - Date.now()) / 1000) : 0] });
+      fz: [this.fence.hp, this.fence.max, this.fence.perm ? 99999 : this.fence.openUntil ? Math.ceil((this.fence.openUntil - Date.now()) / 1000) : 0] });
     this.events = [];
     for (const q of [...this.players.values()]) {
       if (!q.ws) continue;

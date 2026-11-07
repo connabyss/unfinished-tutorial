@@ -334,7 +334,7 @@ function connect() {
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
 function toMap(arr, keys) { const out = new Map(); for (const a of arr) { const o = {}; keys.forEach((k, i) => o[k] = a[i]); out.set(o.id, o); } return out; }
-const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills', 'wear', 'look', 'bot', 'ot', 'pid'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind'];
+const PK = ['id', 'x', 'y', 'hp', 'max', 'lvl', 'dead', 'name', 'hue', 'xp', 'need', 'kills', 'wear', 'look', 'bot', 'ot', 'pid'], MK = ['id', 'x', 'y', 'hp', 'max', 'kind', 'tier'];
 function onSnap(m) {
   snapA = snapB || { p: new Map(), m: new Map() };
   snapB = { p: toMap(m.p, PK), m: toMap(m.m, MK) };
@@ -343,7 +343,7 @@ function onSnap(m) {
   if (m.ev) { $('evt').style.display = ''; $('evt').textContent = (m.ev[0] === 'rain' ? 'SLIME RAIN · 2x loot · ' : m.ev[0] === 'hotfix' ? 'HOTFIX · 2x loot · ' : 'BUG BOUNTY · ') + Math.max(0, m.ev[1]) + 's'; } else $('evt').style.display = 'none';
   snapAt = performance.now();
   total = m.total;
-  if (m.fz) { const was = fence[2]; fence = m.fz; $('a2').style.display = fence[2] ? '' : 'none'; if (fence[2]) $('a2').textContent = `AREA 2 OPEN: ${Math.floor(fence[2] / 60)}:${String(fence[2] % 60).padStart(2, '0')}`; }
+  if (m.fz) { const was = fence[2]; fence = m.fz; $('a2').style.display = fence[2] ? '' : 'none'; if (fence[2] >= 99999) $('a2').textContent = 'AREA 2: OPEN FOR GOOD'; else if (fence[2]) $('a2').textContent = `AREA 2 OPEN: ${Math.floor(fence[2] / 60)}:${String(fence[2] % 60).padStart(2, '0')}`; }
   if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Tap the Shop button. Kills give coins.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch], launch = patch === PATCHES.length; $('pt').textContent = launch ? (m.pa[1] >= m.pa[2] ? `1.0 LAUNCH: beat RELEASE_CANDIDATE_1.0 with ${LAUNCH_CROWD}+ people` : `Next: 1.0 LAUNCH · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`) : `Patch ${patchName(patch)}${nx && innerWidth >= 500 ? ': ' + nx.tease : ''} · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`; $('pb').firstChild.style.width = (100 * m.pa[1] / m.pa[2]) + '%'; updateActions(); }
   const bots = [...snapB.p.values()].filter((q) => q.bot).length;
   $('on').textContent = m.n + (bots ? ` (+${bots} bot${bots > 1 ? 's' : ''})` : ''); $('tot').textContent = total.toLocaleString();
@@ -385,7 +385,8 @@ function onEvent(e) {
   if (e.e === 'sys') log(e.text, true);
   else if (e.e === 'say' && isMuted(snapB.p.get(e.id))) {}
   else if (e.e === 'say') { bubbles.set(e.id, { text: e.text, until: now + 6000 }); log(null, false, nameOf(e.id), e.text); }
-  else if (e.e === 'wind') { winds.set(e.id, { t: now, ms: e.ms, pid: e.pid }); if (e.pid === myId) { sfx('warn'); if ((stats.dodges || 0) < 3) { dodgeHint = now; $('dash').classList.add('hint'); clearTimeout(dodgeHint.t); setTimeout(() => $('dash').classList.remove('hint'), 2200); } } }
+  else if (e.e === 'wind') { winds.set(e.id, { t: now, ms: e.ms, pid: e.pid, r: e.r }); if (e.pid === myId) { sfx('warn'); if ((stats.dodges || 0) < 3) { dodgeHint = now; $('dash').classList.add('hint'); clearTimeout(dodgeHint.t); setTimeout(() => $('dash').classList.remove('hint'), 2200); } } }
+  else if (e.e === 'pound') { const s2 = snapB.m.get(e.id); winds.delete(e.id); if (s2) { fx.push({ x: s2.x, y: s2.y, ring: true, r: e.r * 1.2, c: '#ff6b3d', t: now, life: 420 }); for (let i = 0; i < 24; i++) fx.push({ x: s2.x, y: s2.y, vx: Math.cos(i / 24 * 6.28) * 260, vy: Math.sin(i / 24 * 6.28) * 260 - 80, dot: true, sz: 5, c: '#8a6a3d', t: now, life: 500 }); if (near(s2)) { shake(6); sfx('slam'); } } }
   else if (e.e === 'dash') { const p = snapB.p.get(e.id); if (p) for (let i = 0; i < 10; i++) fx.push({ x: p.x, y: p.y, vx: -Math.cos(e.a) * (60 + i * 25), vy: -Math.sin(e.a) * (60 + i * 25) - 60, dot: true, sz: 4, c: '#dff6ff', t: now, life: 300 }); if (e.id === myId) sfx('click'); }
   else if (e.e === 'skill') { const p = snapB.p.get(e.id); if (p) { fx.push({ x: p.x, y: p.y, ring: true, r: 90, c: '#7fe8ff', t: now, life: 600 }); if (e.id === myId) sfx('title'); } }
   else if (e.e === 'dodge') {
@@ -428,7 +429,7 @@ function onEvent(e) {
   }
   else if (e.e === 'area2') {
     shake(e.open ? 10 : 5); sfx('fanfare');
-    if (e.open) { toast('THE FENCE IS DOWN', 'AREA 2 is open for 5 minutes. Go! Its slimes drop better loot.'); for (let i = 0; i < 60; i++) fx.push({ x: FENCE_X, y: 60 + Math.random() * (H - 120), vx: (Math.random() - .3) * 300, vy: (Math.random() - .7) * 200, dot: true, c: '#d9c39b', t: now, life: 900 }); }
+    if (e.open) { toast('THE FENCE IS DOWN. FOR GOOD.', 'AREA 2 is part of the world now. Its slimes are tough and drop better loot.'); for (let i = 0; i < 60; i++) fx.push({ x: FENCE_X, y: 60 + Math.random() * (H - 120), vx: (Math.random() - .3) * 300, vy: (Math.random() - .7) * 200, dot: true, c: '#d9c39b', t: now, life: 900 }); }
     else toast('FENCE REBUILT', 'The devs noticed. Everyone in Area 2 was sent back.');
   }
   else if (e.e === 'lag') { lagAt.set(e.id, now); const s2 = snapB.m.get(e.id); if (s2) fx.push({ x: s2.x, y: s2.y - 30, text: 'lag', c: '#9fd3ff', t: now, life: 600, big: 0.8 }); }
@@ -1030,7 +1031,7 @@ function drawSlime(s, now) {
   cx.save(); cx.translate(s.x + (ht < 120 || lagged ? (Math.random() - .5) * (lagged ? 10 : 4) : 0), s.y);
   if (wk >= 0 && wk <= 1.1) {
     // winding up a bite: a red reach ring, a "!" and the slime squashes down, flashing
-    const R = r + 24;
+    const R = wd.r || r + 24;
     cx.strokeStyle = `rgba(255,60,60,${0.5 + 0.4 * wk})`; cx.lineWidth = wd.pid === myId ? 3 : 1.5; cx.setLineDash([6, 5]); cx.beginPath(); cx.arc(0, 0, R, 0, 7); cx.stroke(); cx.setLineDash([]);
     cx.fillStyle = `rgba(255,60,60,${0.18 * wk})`; cx.beginPath(); cx.arc(0, 0, R * Math.min(1, wk), 0, 7); cx.fill();
     cx.font = '900 22px system-ui,sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#000'; cx.strokeText('!', 0, -r - 14 - wk * 6); cx.fillStyle = '#ff4a4a'; cx.fillText('!', 0, -r - 14 - wk * 6);
@@ -1080,6 +1081,9 @@ function drawSlime(s, now) {
   const meP = snapB && snapB.p.get(myId);
   const showLabel = big || k === BUG || s.hp < s.max || (meP && Math.hypot(meP.x - s.x, meP.y - s.y) < 170);
   if (showLabel) { cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, ly); cx.fillStyle = k === RELEASE ? '#ffd700' : boss ? '#ff7bf0' : knight ? '#ffb0b0' : todo ? '#ffffff' : k === LAG ? '#cfe6ff' : '#e8ffe0'; cx.fillText(label, s.x, ly); }
+  // danger tier: an orange or red ring under tougher slimes, plus stars over their name
+  if (s.tier === 1 || s.tier === 2) { cx.strokeStyle = s.tier === 2 ? 'rgba(255,60,60,.9)' : 'rgba(255,176,46,.9)'; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(s.x, s.y + r * 0.75, r + 3, r * 0.4 + 2, 0, 0, 7); cx.stroke();
+    cx.font = '900 11px system-ui'; cx.fillStyle = s.tier === 2 ? '#ff5c5c' : '#ffb02e'; cx.fillText(s.tier === 2 ? '★★' : '★', s.x, ly - (showLabel ? 12 : 0)); }
   if (s.hp < s.max || big) { const bw = big ? 90 : k === BIG ? 44 : 28; cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw, 5); cx.fillStyle = boss ? '#ff00dc' : knight ? '#ff5c5c' : '#7be36a'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw * Math.max(0, s.hp) / s.max, 5); }
 }
 function drawSign(s) {
@@ -1189,6 +1193,14 @@ function frame() {
   cx.translate(-Math.round(cam.x) + sx, -Math.round(cam.y) + sy);
   if (now - comboAt > 2500 && comboN) { comboN = 0; $('combo').style.opacity = 0; }
   drawWorld(now);
+  // danger rings around spawn: the difficulty slider, stuck at three settings
+  cx.save(); cx.beginPath(); cx.rect(0, 0, FENCE_X - 6, H); cx.clip();
+  for (const [R, c, t] of [[380, 'rgba(255,176,46,.55)', 'DIFFICULTY: MEDIUM ★ (slimes x2, loot x1.4)'], [720, 'rgba(255,70,70,.6)', 'DIFFICULTY: HARD ★★ (untested. loot x2)']]) {
+    cx.strokeStyle = c; cx.lineWidth = 3; cx.setLineDash([14, 10]); cx.beginPath(); cx.arc(SPAWN.x, SPAWN.y, R, 0, 7); cx.stroke(); cx.setLineDash([]);
+    cx.font = '800 11px ui-monospace,monospace'; cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)';
+    for (const a of [-Math.PI / 2, Math.PI / 2, Math.PI]) { const x = SPAWN.x + Math.cos(a) * R, y = SPAWN.y + Math.sin(a) * R + (a === -Math.PI / 2 ? 16 : -6); if (y < 10 || y > H - 6) continue; cx.strokeText(t, x, y); cx.fillStyle = c.replace(/,\.\d+\)/, ',1)'); cx.fillText(t, x, y); }
+  }
+  cx.restore();
   // plaques: each painted zone names the top 3 people who shipped it
   for (const z of ZONES) {
     const pl = plaques[z.at - 1]; if (!pl || patch < z.at) continue;
