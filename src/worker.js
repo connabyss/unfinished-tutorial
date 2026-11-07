@@ -106,7 +106,7 @@ export class World extends DurableObject {
   async fetch(req) {
     if (new URL(req.url).pathname === "/status") {
       const online = [...this.players.values()].filter((p) => p.named && !p.bot).length;
-      return new Response(JSON.stringify({ online, patch: this.patch, kills: this.patchKills, goal: patchGoal(this.patch), total: this.total, plaques: this.plaques }),
+      return new Response(JSON.stringify({ online, patch: this.patch, kills: this.patchKills, goal: patchGoal(this.patch), total: this.total, plaques: this.plaques, a2: this.fence.perm ? 1 : 0, res: [this.patchRes.poly, resGoal(this.patch).poly, this.patchRes.vert, resGoal(this.patch).vert] }),
         { headers: { "content-type": "application/json", "cache-control": "no-store" } });
     }
     const pair = new WebSocketPair();
@@ -962,13 +962,13 @@ export class World extends DurableObject {
     const goal = patchGoal(this.patch), share = this.shareOf(this.patch);
     const nextShare = this.shareOf(this.patch + 1);
     if (this.patchKills < goal) {
-      let capped = null, credited = false, warm = null;
+      let capped = null, credited = false; const warms = [];
       for (const pid of [...s.hitters].filter(earned).sort((x, y) => (s.dmgBy.get(y) || 0) - (s.dmgBy.get(x) || 0))) {
         const p = this.players.get(pid); if (!p || !p.acct || p.bot) continue;
-        if ((p.acct.stats.kills || 0) < BAR_MIN_KILLS) { warm = warm || p; continue; }
+        if ((p.acct.stats.kills || 0) < BAR_MIN_KILLS) { warms.push(p); continue; }
         const c = this.patchBy[p.keyHash] || 0;
         if (c >= share) { capped = capped || p; continue; }
-        this.patchBy[p.keyHash] = c + 1; this.patchKills++; credited = true; this.patchNames[p.keyHash] = p.name; // test mode: each kill moves the bar 3
+        this.patchBy[p.keyHash] = c + 1; this.patchKills++; credited = true; this.patchNames[p.keyHash] = p.name;
         if (!p.acct.pk || p.acct.pk.p !== this.patch) p.acct.pk = { p: this.patch, k: 0, need: Math.ceil(share / 2) };
         p.acct.pk.k++;
         this.tell(p, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), mine: c + 1, share });
@@ -984,9 +984,9 @@ export class World extends DurableObject {
           capped.barCapTold = this.patch;
           this.tell(capped, { t: "err", text: `Your part of this patch is done (${share} kills). It needs ${this.needed(this.patch)} people, so nobody ships one alone. Your extra kills now count toward the NEXT patch.` });
         }
-      } else if (!credited && warm) {
-        this.tell(warm, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), warm: warm.acct.stats.kills || 0, need: BAR_MIN_KILLS });
       }
+      // new players see their warm-up count on every kill, even when someone else got the bar credit
+      for (const w of warms) this.tell(w, { t: "bar", x: Math.round(s.x), y: Math.round(s.y), warm: w.acct.stats.kills || 0, need: BAR_MIN_KILLS });
     }
     this.tryShip();
     const boss = isBoss(s.kind);

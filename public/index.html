@@ -204,9 +204,10 @@ const SPAWN = { x: 800, y: 600 };
 const GUY = { x: 800, y: 520 };
 const GUY_LINES = [
   "Hi! I'm the tutorial.",
-  "Press W to walk forward.",
-  "Oh, you're on a phone? Just tap. Nobody updated me.",
+  "Press W to walk forward. Oh, you're on a phone? Just tap. Nobody updated me.",
   "Tap a slime to fight it. Everyone who hits it gets the XP.",
+  "The bar at the top is the next patch. Everyone's kills fill it. So do materials.",
+  "Tap a tree for polygons, a rock for vertices. Walk them to the BUILD SITE. That's how patches get built.",
   "Fight with other people. That's the whole MMO part.",
   "The rest of the game is coming soon. I've said that since launch.",
   "Level cap is 15. Levels 16 to 99 are on the roadmap.",
@@ -556,7 +557,8 @@ function onLoot(i, lx, ly, from, why) {
 const freshItems = new Set(), freshTitles = new Set();
 // ---------- scavenging ----------
 let deadNodes = new Set(), myRes = {}, myScav = { lvl: 1, xp: 0 }, myGather = null, resGiven = {}, resShare = {};
-const nodeHit = new Map();
+const nodeHit = new Map(), slimeLabels = [];
+const isBossK = (k) => k === 99 || k === 97 || k === 96;
 function onRes(m) {
   if (m.res) myRes = m.res; if (m.scav) myScav = m.scav;
   if (m.resGiven || m.given) resGiven = m.resGiven || m.given; if (m.resShare || m.share && m.share.poly != null) resShare = m.resShare || m.share;
@@ -1196,7 +1198,7 @@ function drawSlime(s, now) {
       for (let yy = -r; yy < r; yy += t) for (let xx = -r; xx < r; xx += t) { cx.fillStyle = ((Math.floor((xx + r) / t) + Math.floor((yy + r) / t)) % 2) ? '#ff00dc' : '#111'; cx.fillRect(xx, yy, t, t); }
       cx.restore(); cx.strokeStyle = '#000'; cx.lineWidth = 3; cx.stroke();
     } else if (todo) {
-      cx.fillStyle = '#9a9ea6'; cx.fill(); cx.setLineDash([4, 3]); cx.strokeStyle = '#fff'; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
+      cx.fillStyle = '#ffb02e'; cx.fill(); cx.setLineDash([5, 4]); cx.strokeStyle = '#1b1f17'; cx.lineWidth = 3; cx.stroke(); cx.setLineDash([]); // construction orange: easy to see on Area 2's grey grid
     } else {
       if (k === BUG) { cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; const l = Math.sin(now / 50) * 3; cx.beginPath(); for (const y of [-5, 0, 5]) { cx.moveTo(-8, y); cx.lineTo(-17, y + l); cx.moveTo(8, y); cx.lineTo(17, y - l); } cx.stroke(); cx.beginPath(); cx.ellipse(0, 0, r, r * 0.82, 0, 0, 7); }
       cx.fillStyle = k === BUG ? '#e04a3a' : k === FAST ? '#ff8ad8' : k === BIG ? '#3f9a3a' : k === LAG ? '#7fb8ff' : ['#7be36a', '#6ad8c9', '#a6e05a', '#b9b9b9', '#8fe0a0', '#e0d35a'][k % 6];
@@ -1213,7 +1215,11 @@ function drawSlime(s, now) {
   cx.font = (big ? '800 13px' : '600 10px') + ' ui-monospace,Consolas,monospace'; cx.textAlign = 'center';
   const label = KNAME[k] || SLIME_NAMES[k] || 'slime', ly = s.y - r - (knight ? 34 : 8);
   const meP = snapB && snapB.p.get(myId);
-  const showLabel = big || k === BUG || s.hp < s.max || (meP && Math.hypot(meP.x - s.x, meP.y - s.y) < 170);
+  let showLabel = big || k === BUG || s.hp < s.max || (meP && Math.hypot(meP.x - s.x, meP.y - s.y) < 170);
+  if (showLabel) { // never let two slime names print on top of each other: the boss's name wins, then whoever came first
+    const lw = cx.measureText(label).width, rect = { x: s.x - lw / 2, y: ly - 12, w: lw, h: 14 };
+    if (!big && slimeLabels.some((q) => rect.x < q.x + q.w && q.x < rect.x + rect.w && rect.y < q.y + q.h && q.y < rect.y + rect.h)) showLabel = false; else slimeLabels.push(rect);
+  }
   if (showLabel) { cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, ly); cx.fillStyle = k === RELEASE ? '#ffd700' : boss ? '#ff7bf0' : knight ? '#ffb0b0' : todo ? '#ffffff' : k === LAG ? '#cfe6ff' : '#e8ffe0'; cx.fillText(label, s.x, ly); }
   // danger tier: an orange or red ring under tougher slimes, plus stars over their name
   if (s.tier === 1 || s.tier === 2) { cx.strokeStyle = s.tier === 2 ? 'rgba(255,60,60,.9)' : 'rgba(255,176,46,.9)'; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(s.x, s.y + r * 0.75, r + 3, r * 0.4 + 2, 0, 0, 7); cx.stroke();
@@ -1390,7 +1396,8 @@ function frame() {
   if (now - (frame.actAt || 0) > 250) { frame.actAt = now; updateActions(); }
   const draw = [];
   if (snapB) {
-    for (const id of snapB.m.keys()) { const s = interp('m', id); draw.push({ y: s.y, f: () => drawSlime(s, now) }); }
+    slimeLabels.length = 0;
+    for (const id of [...snapB.m.keys()].sort((x, y) => isBossK(snapB.m.get(y).kind) - isBossK(snapB.m.get(x).kind))) { const s = interp('m', id); draw.push({ y: s.y, f: () => drawSlime(s, now) }); }
     for (const n of NODES) draw.push({ y: n.y, f: () => drawNode(n, now) });
     draw.push({ y: BUILD_AT.y - 40, f: () => drawBuildSite(now) });
     // name tags: when players stand on top of each other, stack their labels so they never jumble
@@ -1495,10 +1502,10 @@ function frame() {
 async function loadStatus() {
   try {
     const st = await (await fetch('/status', { cache: 'no-store' })).json();
-    patch = st.patch; plaques = st.plaques || {};
+    patch = st.patch; plaques = st.plaques || {}; if (st.a2) fence = [0, fence[1], 99999];
     $('lon').textContent = st.online; $('ltot').textContent = st.total.toLocaleString(); $('lpv').textContent = st.patch;
     const nx = PATCHES[st.patch];
-    $('lpt').textContent = st.patch >= PATCHES.length ? `Version ${patchName(st.patch)} is out. Somehow.` : `Next patch: ${nx ? nx.tease : '?'} · ${st.kills}/${st.goal} kills`;
+    $('lpt').textContent = st.patch >= PATCHES.length ? `Version ${patchName(st.patch)} is out. Somehow.` : `Next patch: ${nx ? nx.tease : '?'} · ${st.kills}/${st.goal} kills` + (st.res && st.res[1] ? ` · ▲ ${st.res[0]}/${st.res[1]} · ● ${st.res[2]}/${st.res[3]}` : '');
     $('lpb').firstChild.style.width = Math.min(100, 100 * st.kills / st.goal) + '%';
   } catch { $('lpt').textContent = 'The patch bar is loading. It is also unfinished.'; }
 }
