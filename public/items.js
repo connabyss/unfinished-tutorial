@@ -87,7 +87,7 @@ export const FX = {
   reach: { name: "Long", text: "Reaches 22px farther." },
   crit: { name: "Lucky", text: "+6% crit chance." },
   heal: { name: "Snack", text: "Heal 1 HP every kill." },
-  coin: { name: "Greedy", text: "+1 coin every kill." },
+  coin: { name: "Greedy", text: "Kills sometimes drop a polygon for the build." },
   quick: { name: "Quick", text: "Swings 60ms faster." },
   cleave: { name: "Cleave", text: "Each hit also splashes 1 nearby slime for half damage." },
   stun: { name: "Stun", text: "Crits make the slime wait 1s longer before its next bite." },
@@ -113,7 +113,7 @@ export const GOALS = {
   realhat: { k: "kills", n: 10000, how: "Kill 10,000 slimes" },
   realsword: { k: "boss", n: 150, how: "Really help kill 150 bosses" },
   realcape: { k: "days", n: 14, how: "Play on 14 different days (50+ kills each day)" },
-  realpet: { k: "found", n: 45, how: "Find 45 different items from drops (no shop, wishes or gifts)" },
+  realpet: { k: "found", n: 45, how: "Find 45 different items from drops (gifts don't count)" },
   realtrail: { k: "ships", n: 8, how: "Help ship 8 patches (fill at least half your share of each)" },
 };
 export const SHIP_KILLS = 100, DAY_KILLS = 50;
@@ -167,13 +167,13 @@ export function rollItem(rnd, boss, epic = false, maxR = 2) {
 // After the list runs out, every patch is "bug fixes and performance improvements" and adds nothing.
 export const PATCHES = [
   { id: "bench", tease: "a bench", note: "Added a bench. The legs are in the next patch.", x: 640, y: 780, title: "BENCH", text: "Legs coming in a future patch." },
-  { id: "shop", unlock: "shop", tease: "THE SHOP", note: "The SHOP is open. It sells whatever the devs had lying around. Kills give coins.", x: 1080, y: 548, title: "SHOP (OPEN)", text: "Tap the Shop button while you stand here." },
+  { id: "shop", unlock: "shop", tease: "the DEV DESK", note: "The DEV DESK is open. Bring spare copies and materials to upgrade your held item.", x: 1080, y: 548, title: "DEV DESK", text: "Stand here to upgrade your gear with spares + materials." },
   { id: "enemies", unlock: "enemies", tease: "3 new enemies", note: "New enemies: slime_fast, SLIME_BIG_PLACEHOLDER and lag_slime. They drop better loot." },
-  { id: "fountain", unlock: "fountain", tease: "a wishing fountain", note: "Added a wishing fountain. 25 coins for a random item. The water didn't load.", x: 1000, y: 380, title: "FOUNTAIN", text: "Toss 25 coins for a random item. Tap the Wish button." },
+  { id: "fountain", tease: "a fountain", note: "Added a fountain. The water didn't load.", x: 1000, y: 380, title: "FOUNTAIN", text: "Decorative. The water is on the roadmap." },
   { id: "boss2", unlock: "boss2", tease: "a new boss", note: "New boss: FINAL_BOSS_v0.1. It only has one attack. The animator quit." },
-  { id: "npc", unlock: "quests", tease: "quests", note: "NPC_02 now gives quests. Nobody wrote the dialogue, so it just lists numbers.", x: 560, y: 520, title: "NPC_02", text: "QUEST_GIVER.exe. Tap the Quest button." },
+  { id: "npc", tease: "a new NPC", note: "Added NPC_02. Nobody wrote their dialogue, so they just stand there with you.", x: 560, y: 520, title: "NPC_02", text: "Dialogue not found. Moral support only." },
   { id: "fence", unlock: "fence", tease: "a way into Area 2", note: "The Area 2 fence now has HP. Break it together to get in.", },
-  { id: "cloud", unlock: "events", tease: "world events", note: "Weather added: one cloud, on a string. Also world events: Slime Rain and Bug Bounty.", x: 1150, y: 230, title: "WEATHER", text: "The whole weather system. It's one cloud." },
+  { id: "cloud", tease: "weather", note: "Weather added: one cloud, on a string.", x: 1150, y: 230, title: "WEATHER", text: "The whole weather system. It's one cloud." },
   { id: "pond", tease: "a pond", note: "Added a pond. Do not try to swim. It's a rectangle.", x: 300, y: 700, title: "POND (TEMP)", text: "Fishing is on the roadmap." },
   { id: "statue", tease: "a statue", note: "Added a statue of the lead dev. They left halfway through.", x: 1250, y: 760, title: "STATUE", text: "The lead dev. Scaffolding still up." },
   { id: "lamp", tease: "a lamp", note: "Added a street lamp. There is no night.", x: 900, y: 860, title: "LAMP", text: "Always on. There is no night." },
@@ -214,19 +214,19 @@ export const TITLES = [
   { name: "Unpaid QA", need: { deaths: 5 }, how: "Die 5 times" },
   { name: "Fence Enjoyer", need: { fence: 60 }, how: "Hit the Area 2 fence 60 times" },
   { name: "Combo Goblin", need: { combo: 20 }, how: "Land a 20-hit combo" },
-  { name: "Hat Haver", need: { found: 5 }, how: "Find 5 different items" },
+  { name: "Hat Haver", cut: 1, need: { found: 5 }, how: "Find 5 different items" },
   { name: "Max Level (it's 15)", need: { lvl: 15 }, how: "Reach level 15" },
   { name: "Boss Puncher", need: { boss: 1 }, how: "Help kill MISSING_TEXTURE" },
-  { name: "Collector", need: { found: 30 }, how: "Find 30 different items from drops" },
-  { name: "Completionist", need: { found: FINDABLE }, how: `Find all ${FINDABLE} findable items yourself` },
-  { name: "Set Enjoyer", need: { sets: 1 }, how: "Wear a full set" },
-  { name: "Mostly Finished", need: { kills: 1000 }, how: "Kill 1,000 slimes" },
-  { name: "Raid Regular", need: { boss: 25 }, how: "Really help kill 25 bosses" },
-  { name: "Unpaid Overtime", need: { ot: 10 }, how: "Reach overtime ★10 (keep playing past level 15)" },
-  { name: "Crunch Survivor", need: { ot: 50 }, how: "Reach overtime ★50" },
-  { name: "Regular", need: { days: 7 }, how: "Play on 7 different days (50+ kills each)" },
+  { name: "Collector", cut: 1, need: { found: 30 }, how: "Find 30 different items from drops" },
+  { name: "Completionist", cut: 1, need: { found: FINDABLE }, how: `Find all ${FINDABLE} findable items yourself` },
+  { name: "Set Enjoyer", cut: 1, need: { sets: 1 }, how: "Wear a full set" },
+  { name: "Mostly Finished", cut: 1, need: { kills: 1000 }, how: "Kill 1,000 slimes" },
+  { name: "Raid Regular", cut: 1, need: { boss: 25 }, how: "Really help kill 25 bosses" },
+  { name: "Unpaid Overtime", cut: 1, need: { ot: 10 }, how: "Reach overtime ★10 (keep playing past level 15)" },
+  { name: "Crunch Survivor", cut: 1, need: { ot: 50 }, how: "Reach overtime ★50" },
+  { name: "Regular", cut: 1, need: { days: 7 }, how: "Play on 7 different days (50+ kills each)" },
   { name: "Shipped It", need: { ships: 5 }, how: "Help ship 5 patches" },
-  { name: "Actually Finished", need: { fin: 5 }, how: "Earn all 5 Finished items" },
+  { name: "Actually Finished", cut: 1, need: { fin: 5 }, how: "Earn all 5 Finished items" },
   { name: "Clipped Through", need: { secrets: 1 }, how: "Find a hidden spot" },
   { name: "QA Lead", need: { secrets: 5 }, how: "Find all 5 hidden spots" },
   { name: "Day One", need: { launch: 1 }, how: "Help beat RELEASE_CANDIDATE_1.0 when version 1.0 ships" },
@@ -254,7 +254,7 @@ export const QUESTS = [
   { k: "emote", n: 5, text: "Emote 5 times. Social features need engagement metrics.", coins: 15 },
 ];
 
-// SKILLS: the shop sells the skills the devs cut. Coins buy levels; each level costs more, forever-ish.
+// SKILLS: the fighting skills the devs cut. They come back as you level up (see skillAt).
 // They make fighting feel better (faster swings, bigger spins, harder counters, a dash) but never block anyone.
 export const SKILLS = [
   { k: "swing", name: "Swing speed", text: "Swing 25ms faster per level. The animation was always optional.", max: 10 },
@@ -262,7 +262,7 @@ export const SKILLS = [
   { k: "counter", name: "Counter", text: "Counter crits after a dodge hit 30% harder per level.", max: 10 },
   { k: "dash", name: "Dash", text: "Dash cools down 0.25s faster and goes 10px further per level.", max: 10 },
 ];
-export const skillCost = (lvl) => 40 * (lvl + 1) * (lvl + 1); // 40, 160, 360 ... 4,400 for level 10
+export const skillAt = (lvl) => Math.min(10, Math.floor((lvl - 1) * 10 / 14)); // fighting skills grow with your level: 0 at Lv 1, 10 at Lv 15
 export const swingMs = (lv) => 450 - 25 * (lv || 0);
 export const spinCd = (lv) => SPIN_CD - 400 * (lv || 0);
 export const dashCd = (lv) => 4000 - 250 * (lv || 0);
@@ -284,16 +284,16 @@ export const DEV_NOTES = [
 ];
 
 // what your worn gear adds up to. wear = item indexes per slot (-1 = empty). Server and client both use this.
-// upgrading a held item: spare copies + coins make its one effect stronger (v1 -> v2 -> v3 -> v4).
+// upgrading a held item at the DEV DESK: spare copies + materials make its one effect stronger (v1 -> v2 -> v3 -> v4).
 // The name gets a version number, like every real file on a dev's desktop.
 export const UPG_MAX = 3;
 export const upgSpares = (lvl) => lvl + 1;                          // spare copies used for the next version
-export const upgCost = (r, lvl) => [30, 60, 150, 300, 300][r] * (lvl + 1) * (lvl + 1); // coins for the next version
+export const upgCost = (r, lvl) => ({ poly: [10, 20, 40, 60, 60][r] * (lvl + 1), vert: [6, 12, 24, 36, 36][r] * (lvl + 1) }); // materials for the next version
 export const upgMul = (lvl) => 1 + 0.5 * (lvl || 0);                // v1 = x1, v2 = x1.5, v3 = x2, v4 = x2.5
 export const fxText = (fx, lvl) => {
   const m = upgMul(lvl);
   return { knock: `Hits knock the slime back ${Math.round(26 * m)}px.`, reach: `Reaches ${Math.round(22 * m)}px farther.`, crit: `+${Math.round(6 * m)}% crit chance.`,
-    heal: `Heal ${Math.round(m)} HP every kill.`, coin: `+${Math.round(m)} coin${Math.round(m) > 1 ? "s" : ""} every kill.`, quick: `Swings ${Math.round(60 * m)}ms faster.`,
+    heal: `Heal ${Math.round(m)} HP every kill.`, coin: `${Math.round(25 * m)}% of kills drop a polygon.`, quick: `Swings ${Math.round(60 * m)}ms faster.`,
     cleave: `Each hit also splashes 1 nearby slime for ${Math.round(100 * Math.min(1, 0.5 + 0.17 * (lvl || 0)))}% damage.`, stun: `Crits make the slime wait ${(m).toFixed(1)}s longer before its next bite.` }[fx];
 };
 
@@ -310,10 +310,7 @@ export function gearOf(wear, up = {}) {
   }
   for (const st of SETS) {
     if (!st.items.every((id) => worn.has(id))) continue;
-    g.sets.push(st.name);
-    if (st.bonus === "dash") g.dash += 500; else if (st.bonus === "heal") g.heal += 1; else if (st.bonus === "crit") g.crit += 0.05;
-    else if (st.bonus === "counter") g.counter = 5000; else if (st.bonus === "spin") g.spin += 20; else if (st.bonus === "armor") g.armor += 1;
-    else if (st.bonus === "coin") g.coin += 1;
+    g.sets.push(st.name); // a full set glows. No stats: it's a look.
   }
   return g;
 }

@@ -137,7 +137,6 @@
 <div id="me" class="hud">
   <div class="name" id="nm" title="Tap to change your name">…</div>
   <div id="lv">Lv 1</div>
-  <div class="coinrow">🪙 <b id="coins" style="display:inline-block">0</b> placeholder coins</div>
   <div class="coinrow" id="matrow">▲ <b id="mpoly" style="display:inline-block">0</b> · ● <b id="mvert" style="display:inline-block">0</b> · Scavenging Lv <b id="mscav">1</b></div>
   <div class="bar" id="hp"><i></i></div>
   <div class="bar" id="xp"><i></i></div>
@@ -169,8 +168,7 @@
   <h3>Eyes</h3><div class="row" id="meeyes"></div>
   <h3>Mouth</h3><div class="row" id="memouth"></div>
   <h3>Title</h3><div class="row" id="metitle"></div>
-  <h3>Quest</h3><div class="stats" id="mequest"></div>
-  <h3>Save code</h3><div class="stats">This code is your character: name, level, loot, coins and looks. Use it to play on another device. Don't share it.</div>
+  <h3>Save code</h3><div class="stats">This code is your character: name, level, loot, materials and looks. Use it to play on another device. Don't share it.</div>
   <div class="row" style="margin-top:6px"><b id="mekey" style="font-family:ui-monospace,Consolas,monospace;font-size:15px;align-self:center"></b><button class="opt" id="mecopy">📋 Copy</button><button class="opt" id="meload">📥 Use a save code</button></div>
   <h3>Other</h3><div class="row"><button class="opt" id="merand">🎲 Randomize</button><button class="opt" id="mesnd"></button><button class="opt" id="memus"></button></div>
 </div>
@@ -191,7 +189,7 @@
   </div>
 </div>
 <script type="module">
-import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, PRICES, shopStock, WISH_COST, QUESTS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, FINDABLE, SCRAP, RAINBOW_OT, SPIN_CD, SECRETS, SKILLS, skillCost, spinCd, dashCd, NODES, NODE_NAMES, NODE_REQ, RES, BUILD_AT, SCAV_MAX, scavNeed, LEVEL_CAP, dmgAt, FX, gearOf, UPG_MAX, upgSpares, upgCost, fxText, DEV_NOTES, LAUNCH_CROWD, patchName, OT_REWARDS } from './items.js';
+import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES, SETS, unlocked as isUnlocked, GOALS, isBound, EPIC_BOSSES, GIFT_MIN_KILLS, FINDABLE, SPIN_CD, SECRETS, SKILLS, skillAt, spinCd, dashCd, NODES, NODE_NAMES, NODE_REQ, RES, BUILD_AT, SCAV_MAX, scavNeed, LEVEL_CAP, dmgAt, FX, gearOf, UPG_MAX, upgSpares, upgCost, fxText, DEV_NOTES, LAUNCH_CROWD, patchName, OT_REWARDS } from './items.js';
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
@@ -216,12 +214,12 @@ const GUY_LINES = [
   "Slimes drop loot now. The devs called it a content update.",
   "Every slime anyone kills fills the patch bar. Each patch ships something real. Probably.",
   "Tap another player to wave, give them an item, or mute them.",
-  "Tap Bag to wear your loot. Every item has the same stats: none.",
+  "Tap Bag to wear your loot. Held items each do one small thing. Spares upgrade them at the DEV DESK.",
   "Keep hitting without stopping for a combo. Every 5th hit is a crit. That part works.",
   "Tap Me to make your character. The character creator was the one thing they finished.",
 ];
 const SIGNS = [
-  { x: 960, y: 600, title: "SHOP", text: "Closed for launch." },
+  { x: 960, y: 600, title: "DEV DESK", text: "Closed for launch." },
   { x: 690, y: 430, title: "HALL OF FAME", text: "The most dedicated people on this server. Tap the button to look." },
   { x: 650, y: 650, title: "RESPAWN POINT", text: "Also the only point. Slimes can't come in here. They respect the tutorial." },
   { x: 1470, y: 690, title: "AREA 2 →", text: "Coming soon. The fence has HP, though. Tap it. Bring friends." },
@@ -337,13 +335,11 @@ function connect() {
     else if (m.t === 'key') { myKey = m.key; store.set('ut_key', m.key); }
     else if (m.t === 'me') onMe(m);
     else if (m.t === 'hof') renderHof(m);
-    else if (m.t === 'secret') { coins = m.coins; $('coins').textContent = coins.toLocaleString(); toast(`HIDDEN SPOT ${m.n}/${m.of}`, SECRETS[m.i].text + ' +20 coins.'); sfx('title'); log(`You found a hidden spot (${m.n}/${m.of}).`, true); }
+    else if (m.t === 'secret') { toast(`HIDDEN SPOT ${m.n}/${m.of}`, SECRETS[m.i].text); sfx('title'); log(`You found a hidden spot (${m.n}/${m.of}).`, true); }
     else if (m.t === 'err') { toast('', m.text); log(m.text, true); }
     else if (m.t === 'title') { if (!titlesHave.includes(m.i)) titlesHave.push(m.i); freshTitles.add(m.i); if ($('mep').classList.contains('open')) renderMe(); setTimeout(() => { toast('TITLE UNLOCKED: ' + TITLES[m.i].name, 'Tap 🎨 Me to wear it under your name.'); sfx('title'); $('mebtn').classList.add('pulse'); }, 900); }
     else if (m.t === 'bar') onBar(m);
     else if (m.t === 'res') { onRes(m); }
-    else if (m.t === 'coins') { coins = m.n; $('coins').textContent = coins.toLocaleString(); $('coins').animate([{ transform: 'scale(1.5)', color: '#ffd34d' }, { transform: 'scale(1)' }], { duration: 260 }); fx.push({ x: m.x + 34, y: m.y - 8, text: '+' + m.add + '¢', c: '#ffe36b', t: performance.now() + 250, life: 700, big: 0.75 }); }
-    else if (m.t === 'qp') { if (myQuest) myQuest.have = m.have; fx.push({ x: (snapB.p.get(myId) || SPAWN).x, y: (snapB.p.get(myId) || SPAWN).y - 70, text: `quest ${m.have}/${m.n}`, c: '#bfe3ff', t: performance.now(), life: 1000, big: 0.8 }); if (m.have >= m.n) { toast('QUEST READY', 'Go back to NPC_02 to hand it in.'); sfx('title'); } }
     else if (m.t === 'kicked') { kicked = true; $('status').classList.remove('hide'); $('status').textContent = 'You opened the game somewhere else, so this tab was closed. One character, one tab. Like a real MMO.'; }
   };
   ws.onclose = () => { myId = null; if (kicked) return; $('status').classList.remove('hide'); $('status').textContent = 'Lost the server. Reconnecting…'; setTimeout(connect, 2000); };
@@ -363,14 +359,14 @@ function onSnap(m) {
   if (m.fz) { const was = fence[2]; fence = m.fz; $('a2').style.display = fence[2] ? '' : 'none'; if (fence[2] >= 99999) $('a2').textContent = 'AREA 2: OPEN FOR GOOD'; else if (fence[2]) $('a2').textContent = `AREA 2 OPEN: ${Math.floor(fence[2] / 60)}:${String(fence[2] % 60).padStart(2, '0')}`; }
   if (m.nd) deadNodes = new Set(m.nd);
   if (m.pa && m.pa[6] && !frame.scavTold && store.get('ut_scavtold') !== '1') { frame.scavTold = true; store.set('ut_scavtold', '1'); setTimeout(() => toast('NEW JOB: SCAVENGING', 'Patches now need materials too. Tap a tree for ▲ polygons or a rock for ● vertices, then walk them to the BUILD SITE just south-east of spawn.'), 2500); }
-  if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Tap the Shop button. Kills give coins.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch], launch = patch === PATCHES.length; $('pt').textContent = launch ? (m.pa[1] >= m.pa[2] ? `1.0 LAUNCH: beat RELEASE_CANDIDATE_1.0 with ${LAUNCH_CROWD}+ people` : `Next: 1.0 LAUNCH · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`) : `Patch ${patchName(patch)}${nx && innerWidth >= 500 ? ': ' + nx.tease : ''} · ⚔ ${m.pa[1]}/${m.pa[2]}${m.pa[6] ? ` · ▲ ${m.pa[5]}/${m.pa[6]} · ● ${m.pa[7]}/${m.pa[8]}` : ''} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`; { const parts = [m.pa[1] / m.pa[2]]; if (m.pa[6]) parts.push(Math.min(1, m.pa[5] / m.pa[6]), Math.min(1, m.pa[7] / m.pa[8])); $('pb').firstChild.style.width = (100 * parts.reduce((x, y) => x + Math.min(1, y), 0) / parts.length) + '%'; } updateActions(); }
+  if (m.pa) { patch = m.pa[0]; SIGNS[0].text = isUnlocked(patch, 'shop') ? 'Open! Spares + materials upgrade your held item here.' : 'Closed for launch. Opens in a patch.'; const nx = PATCHES[patch], launch = patch === PATCHES.length; $('pt').textContent = launch ? (m.pa[1] >= m.pa[2] ? `1.0 LAUNCH: beat RELEASE_CANDIDATE_1.0 with ${LAUNCH_CROWD}+ people` : `Next: 1.0 LAUNCH · ${m.pa[1]}/${m.pa[2]} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`) : `Patch ${patchName(patch)}${nx && innerWidth >= 500 ? ': ' + nx.tease : ''} · ⚔ ${m.pa[1]}/${m.pa[2]}${m.pa[6] ? ` · ▲ ${m.pa[5]}/${m.pa[6]} · ● ${m.pa[7]}/${m.pa[8]}` : ''} · ${m.pa[3] || 0} helping (needs ${m.pa[4] || 5}+)`; { const parts = [m.pa[1] / m.pa[2]]; if (m.pa[6]) parts.push(Math.min(1, m.pa[5] / m.pa[6]), Math.min(1, m.pa[7] / m.pa[8])); $('pb').firstChild.style.width = (100 * parts.reduce((x, y) => x + Math.min(1, y), 0) / parts.length) + '%'; } updateActions(); }
   const bots = [...snapB.p.values()].filter((q) => q.bot).length;
   $('on').textContent = m.n + (bots ? ` (+${bots} bot${bots > 1 ? 's' : ''})` : ''); $('tot').textContent = total.toLocaleString();
   for (const e of m.e) onEvent(e);
   const me = snapB.p.get(myId);
   if (me) {
     $('nm').innerHTML = ''; $('nm').append(me.name + ' '); const sm = document.createElement('small'); sm.textContent = '✎'; $('nm').append(sm);
-    $('lv').textContent = me.lvl >= LEVEL_CAP ? `Lv ${LEVEL_CAP} (max)${me.ot ? ' ★' + me.ot + ' overtime' : ''} · ${me.kills} kills` : `Lv ${me.lvl} · ${me.kills} kills`;
+    $('lv').textContent = me.lvl >= LEVEL_CAP ? `Lv ${LEVEL_CAP} (max) · ${me.kills} kills` : `Lv ${me.lvl} · ${me.kills} kills`;
     $('hp').firstChild.style.width = (100 * me.hp / me.max) + '%';
     $('xp').firstChild.style.width = Math.min(100, 100 * me.xp / (me.need || 1)) + '%'; $('xp').firstChild.style.background = me.lvl >= LEVEL_CAP ? '#ffb02e' : '';
   }
@@ -464,7 +460,7 @@ function onEvent(e) {
     for (let i = 0; i < (e.boss ? 60 : 18); i++) fx.push({ x: e.x, y: e.y, vx: (Math.random() - .5) * (e.boss ? 520 : 320), vy: (Math.random() - .75) * (e.boss ? 480 : 320), dot: true, sz: 4 + Math.random() * 5, c: e.boss ? (i % 2 ? '#ff00dc' : '#111') : ['#7be36a', '#b6ff9e', '#4fbf45'][i % 3], t: now, life: 750 });
     fx.push({ x: e.x, y: e.y, ring: true, r: e.boss ? 120 : 46, c: e.boss ? '#ff7bf0' : '#e8ffe0', t: now, life: e.boss ? 600 : 350 });
     if (e.helpers > 1 && !e.boss) fx.push({ x: e.x, y: e.y - 40, text: `teamwork ×${e.helpers}`, c: '#ffd34d', t: now, life: 1100 });
-    if (mine) { fx.push({ x: e.x - 30, y: e.y - 8, text: (snapB.p.get(myId) || {}).lvl >= LEVEL_CAP ? '+' + (e.xp || 1) + ' overtime' : '+' + (e.xp || 1) + ' XP', c: '#ffd34d', t: now + 120, life: 900, big: 0.9 }); shake(e.boss ? 14 : 4); sfx(e.boss ? 'boss' : 'kill'); }
+    if (mine) { fx.push({ x: e.x - 30, y: e.y - 8, text: (snapB.p.get(myId) || {}).lvl >= LEVEL_CAP ? 'max level' : '+' + (e.xp || 1) + ' XP', c: '#ffd34d', t: now + 120, life: 900, big: 0.9 }); shake(e.boss ? 14 : 4); sfx(e.boss ? 'boss' : 'kill'); }
     else if (near(e)) sfx('kill', 0, 0.3);
   }
   else if (e.e === 'lvl' && e.id === myId) { sfx('lvl'); for (let i = 0; i < 30; i++) { const me = snapB.p.get(myId); if (me) fx.push({ x: me.x, y: me.y, vx: Math.cos(i / 30 * 6.28) * 200, vy: Math.sin(i / 30 * 6.28) * 200 - 80, dot: true, sz: 5, c: '#ffd34d', t: now, life: 800 }); } }
@@ -519,18 +515,17 @@ function toast(big, small) { const t = $('toast'); t.innerHTML = ''; t.append(bi
 
 // ---------- your character, kept on the server (the browser only keeps your save code) ----------
 const idx = (id) => ITEMS.findIndex((it) => it.id === id);
-let myKey = store.get('ut_key') || '', bag = {}, wear = {}, coins = 0, stats = { kills: 0, deaths: 0, fence: 0, combo: 0, found: 0, lvl: 1, boss: 0, sets: 0 };
-let seen = [], qleft = 5, titlesHave = [0], myQuest = null, look = [0, 0, 0, 0], worldEvent = null, gotMe = false;
+let myKey = store.get('ut_key') || '', bag = {}, wear = {}, stats = { kills: 0, deaths: 0, fence: 0, combo: 0, found: 0, lvl: 1, boss: 0, sets: 0 };
+let seen = [], qleft = 5, titlesHave = [0], look = [0, 0, 0, 0], worldEvent = null, gotMe = false;
 try { const l = JSON.parse(store.get('ut_look') || 'null'); if (Array.isArray(l)) look = [0, 1, 2].map((i) => Number.isInteger(l[i]) ? l[i] : 0).concat([0]); } catch {}
 function sendHi() { send({ t: 'hi', key: myKey || undefined, name: myName, hue: myHue, look }); }
 function onMe(m) {
   gotMe = true;
   myName = m.name; store.set('ut_name', myName); myHue = m.hue; store.set('ut_hue', myHue); look = m.look; store.set('ut_look', JSON.stringify(look));
-  bag = m.bag || {}; wear = m.wear || {}; coins = m.coins || 0; stats = m.stats || stats; titlesHave = m.titles || [0]; myQuest = m.quest; seen = m.seen || []; mySk = m.sk || {}; myUp = m.up || {}; onRes(m); if ($('shopp').classList.contains('open') && $('shoph').textContent.startsWith('SHOP')) renderShop(); if (m.share && !(myPart && myPart.banked != null)) { myPart = { mine: m.shipk || 0, share: m.share }; setPart(); }
-  $('coins').textContent = coins.toLocaleString();
+  bag = m.bag || {}; wear = m.wear || {}; stats = m.stats || stats; titlesHave = m.titles || [0]; seen = m.seen || []; mySk = m.sk || {}; myUp = m.up || {}; onRes(m); if ($('shopp').classList.contains('open') && $('shoph').textContent.startsWith('DEV DESK')) renderShop(); if (m.share && !(myPart && myPart.banked != null)) { myPart = { mine: m.shipk || 0, share: m.share }; setPart(); }
   if ($('bagp').classList.contains('open')) renderBag();
   if ($('mep').classList.contains('open')) renderMe();
-  if ($('shopp').classList.contains('open')) renderShop();
+  if ($('shopp').classList.contains('open') && $('shoph').textContent.startsWith('DEV DESK')) renderShop();
 }
 function wearItem(slot, item) { send({ t: 'wear', slot, item }); if (item == null || item < 0) delete wear[slot]; else wear[slot] = ITEMS[item].id; }
 function onLoot(i, lx, ly, from, why) {
@@ -540,9 +535,9 @@ function onLoot(i, lx, ly, from, why) {
   const auto = n === 1 && (!cur || it.r >= cur.r);
   if (auto) wearItem(it.slot, i);
   const rar = RARITY[it.r];
-  const head = from ? `GIFT FROM ${from}: ` : why === 'shop' ? 'BOUGHT: ' : why === 'wish' ? 'WISH GRANTED: ' : why === 'goal' ? 'EARNED: ' : 'LOOT: ';
+  const head = from ? `GIFT FROM ${from}: ` : why === 'goal' ? 'EARNED: ' : 'LOOT: ';
   if (n > 1 && it.r < 2 && !from && !why) log(`Another ${it.name}. You have ${n}.`, true);
-  else toast(head + it.name, n > 1 ? `Another one. You have ${n}.` + (it.r <= 2 ? ' Recycle spares in the bag.' : '') : `${rar.name}. ${it.text}` + (it.fx ? ` ⚡ ${FX[it.fx].name}: ${FX[it.fx].text}` : '') + (auto ? ' (Wearing it.)' : ''));
+  else toast(head + it.name, n > 1 ? `Another one. You have ${n}.` + (it.fx ? ' Spares upgrade it at the DEV DESK.' : '') : `${rar.name}. ${it.text}` + (it.fx ? ` ⚡ ${FX[it.fx].name}: ${FX[it.fx].text}` : '') + (auto ? ' (Wearing it.)' : ''));
   const me = snapB && snapB.p.get(myId), now = performance.now();
   if (me) {
     // the item pops out of the slime and lands on you
@@ -564,6 +559,8 @@ function onRes(m) {
   if (m.resGiven || m.given) resGiven = m.resGiven || m.given; if (m.resShare || m.share && m.share.poly != null) resShare = m.resShare || m.share;
   const bump = (id, v) => { const el = $(id); if (el.textContent !== String(v)) { el.textContent = v; el.animate([{ transform: 'scale(1.5)' }, { transform: 'scale(1)' }], { duration: 240 }); } };
   bump('mpoly', myRes.poly || 0); bump('mvert', myRes.vert || 0); $('mscav').textContent = myScav.lvl;
+  if (m.drop) fx.push({ x: m.x + 30, y: m.y - 10, text: '+1 ▲', c: '#9fe08a', t: performance.now() + 200, life: 800, big: 0.8 });
+  if (m.t === 'res' && $('shopp').classList.contains('open') && $('shoph').textContent.startsWith('DEV DESK')) renderShop();
 }
 function nodeAt(x, y) { let best = null, bd = 30; for (const n of NODES) { const d = Math.hypot(n.x - x, n.y - 14 - y); if (d < bd) { bd = d; best = n; } } return best; }
 function drawNode(n, now) {
@@ -623,21 +620,20 @@ function setInfo() { // how many pieces of each set you're wearing
 }
 function renderBag() {
   const found = stats.found || 0;
-  $('bagsub').textContent = giveTo != null ? `Tap an item to give one to ${nameOf(giveTo)}. Unfinished and Finished items are bound to you.` : `${found} of ${FINDABLE} found yourself · ${coins.toLocaleString()} coins. Tap to wear. Held items each do one small thing. A full set adds a bonus.`;
+  $('bagsub').textContent = giveTo != null ? `Tap an item to give one to ${nameOf(giveTo)}. Unfinished and Finished items are bound to you.` : `${found} of ${FINDABLE} found yourself. Tap to wear. Held items each do one small thing. A full set glows.`;
   const g = $('baggrid'); g.innerHTML = '';
   const head = (t) => { const h = document.createElement('h3'); h.textContent = t; h.style.gridColumn = '1/-1'; h.style.margin = '8px 0 0'; g.append(h); };
   if (giveTo == null) {
-    const sb = document.createElement('button'); sb.className = 'opt'; sb.style.gridColumn = '1/-1'; sb.textContent = scrapMode ? '♻ Recycling: tap an item with spares (×2+) to turn one into coins. Tap here to stop.' : `♻ Recycle spare copies for coins (${SCRAP.join(' / ')} by rarity)`;
-    sb.onclick = () => { scrapMode = !scrapMode; renderBag(); }; g.append(sb);
+
   }
   const sets = () => {
     if (giveTo != null) return;
-    head('Sets (3+ pieces glow, the full set adds a bonus)');
+    head('Sets (3+ pieces glow. Just a look, no stats)');
     for (const { st, n, have } of setInfo()) {
       const d = document.createElement('div'); d.className = 'it' + (n >= 3 ? ' on' : ''); d.style.gridColumn = 'span 2'; d.style.textAlign = 'left';
       const b = document.createElement('b'); b.textContent = st.name; b.style.color = st.color === '#c8ccd2' ? '#777' : st.color;
       const full = n === st.items.length, r = document.createElement('i'); r.textContent = `Found ${have}/${st.items.length} · wearing ${n}` + (full ? ' · BONUS ON' : n >= 3 ? ' · GLOWING' : '');
-      const bo = document.createElement('i'); bo.className = 'fxl'; bo.textContent = (full ? '✅ ' : 'Full set: ') + st.btext; if (!full) bo.style.opacity = '.7';
+      const bo = document.createElement('i'); bo.className = 'fxl'; bo.textContent = full ? '✅ Full set. You glow.' : 'Full set: you glow.'; if (!full) bo.style.opacity = '.7';
       const l = document.createElement('i'); l.textContent = st.items.map((id) => (bag[id] > 0 ? '' : '? ') + ITEMS[idx(id)].name).join(' · ');
       d.append(b, r, bo, l); g.append(d);
     }
@@ -666,7 +662,6 @@ function renderBag() {
         d.title = it.text;
         d.onclick = () => {
           sfx('click');
-          if (scrapMode && giveTo == null) { if (bag[it.id] > 1 && it.r <= 2) send({ t: 'scrap', item: i }); else toast('', it.r > 2 ? "Unfinished and Finished items can't be recycled." : 'You only have one. Keep it.'); return; }
           if (giveTo != null) { if (isBound(it)) { toast('BOUND TO YOU', 'Trading this wasn\'t coded. You earned it, so it stays.'); return; } send({ t: 'give', to: giveTo, item: i }); giveTo = null; $('bagp').classList.remove('open'); return; }
           wearItem(it.slot, on ? null : i); renderBag();
         };
@@ -676,7 +671,7 @@ function renderBag() {
   }
   sets();
 }
-let scrapMode = false, spinAt = -1e9, dashAt = -1e9, mySk = {}, myUp = {}, dodgeHint = 0, mouseW = null;
+let spinAt = -1e9, dashAt = -1e9, mySk = {}, myUp = {}, dodgeHint = 0, mouseW = null;
 $('spin').onclick = (ev) => { ev.stopPropagation(); const now = performance.now(); if (now - spinAt < spinCd(mySk.spin)) return; spinAt = now; send({ t: 'spin' }); };
 function doDash(toward) { const now = performance.now(); if (now - dashAt < dashCd(mySk.dash) - myGear().dash) return; dashAt = now; send(toward ? { t: 'dash', x: toward.x, y: toward.y } : { t: 'dash' }); $('dash').classList.remove('hint'); }
 $('dash').onclick = (ev) => { ev.stopPropagation(); doDash(null); };
@@ -688,7 +683,7 @@ addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 setInterval(() => { if (!keys.size || myId == null) return; const me = snapB && snapB.p.get(myId); if (!me) return; const dx = (keys.has('d') || keys.has('arrowright')) - (keys.has('a') || keys.has('arrowleft')), dy = (keys.has('s') || keys.has('arrowdown')) - (keys.has('w') || keys.has('arrowup')); if (dx || dy) send({ t: 'go', x: me.x + dx * 60, y: me.y + dy * 60 }); }, 120);
 addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target !== $('msg')) { e.preventDefault(); $('spin').click(); } });
 setInterval(() => { const me = snapB && snapB.p.get(myId); const show = !!me && !$('chatbox').classList.contains('open'); $('spin').classList.toggle('on', show); $('dash').classList.toggle('on', show); const dl = dashCd(mySk.dash) - myGear().dash - (performance.now() - dashAt); $('dash').classList.toggle('cd', dl > 0); $('dash').innerHTML = dl > 0 ? '💨<br>' + (dl / 1000).toFixed(1) + 's' : '💨<br>Dash'; const left = spinCd(mySk.spin) - (performance.now() - spinAt); $('spin').classList.toggle('cd', left > 0); $('spin').innerHTML = left > 0 ? '💥<br>' + Math.ceil(left / 1000) + 's' : '💥<br>Spin'; }, 200);
-$('bag').onclick = () => { send({ t: 'me' }); giveTo = null; scrapMode = false; $('bag').classList.remove('new'); renderBag(); $('bagp').classList.add('open'); $('bagp').scrollTop = 0; const f1 = $('baggrid').querySelector('.fresh'); if (f1) setTimeout(() => f1.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150); $('mep').classList.remove('open'); $('shopp').classList.remove('open'); };
+$('bag').onclick = () => { send({ t: 'me' }); giveTo = null; $('bag').classList.remove('new'); renderBag(); $('bagp').classList.add('open'); $('bagp').scrollTop = 0; const f1 = $('baggrid').querySelector('.fresh'); if (f1) setTimeout(() => f1.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150); $('mep').classList.remove('open'); $('shopp').classList.remove('open'); };
 $('bagx').onclick = () => { giveTo = null; $('bagp').classList.remove('open'); freshItems.clear(); };
 
 // Hats are drawn with the head at (0,0), radius 14. Hand items point up from the hand.
@@ -882,18 +877,16 @@ const bodyColor = (hue, now) => hue >= 360 ? `hsl(${(now / 8) % 360} 75% 58%)` :
 function opt(label, on, click, extra) { const b = document.createElement('button'); b.className = 'opt' + (on ? ' on' : '') + (extra || ''); b.textContent = label; b.onclick = () => { sfx('click'); click(); }; return b; }
 const fmtKey = (k) => (k || '').replace(/(.{5})(?=.)/g, '$1-');
 function renderMe() {
-  $('mestats').textContent = `Lifetime: ${(stats.kills || 0).toLocaleString()} kills · ${stats.deaths || 0} deaths · best combo ×${stats.combo || 0} · ${stats.boss || 0} bosses · ${stats.days || 0} days played · ${stats.ships || 0} patches shipped · overtime ★${stats.ot || 0} · hidden spots ${stats.secrets || 0}/${SECRETS.length} · ${stats.found || 0}/${FINDABLE} items found · ${coins.toLocaleString()} coins`;
+  $('mestats').textContent = `Lifetime: ${(stats.kills || 0).toLocaleString()} kills · ${stats.deaths || 0} deaths · best combo ×${stats.combo || 0} · ${stats.boss || 0} bosses · ${stats.days || 0} days played · ${stats.ships || 0} patches shipped · hidden spots ${stats.secrets || 0}/${SECRETS.length} · ${stats.found || 0}/${FINDABLE} items found`;
   const col = $('mecol'); col.innerHTML = '';
-  for (const h of HUES) { const b = document.createElement('button'); b.className = 'sw' + (myHue === h ? ' on' : ''); b.style.background = h >= 360 ? 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' : `hsl(${h} 70% 55%)`; const lockR = h >= 360 && (stats.ot || 0) < RAINBOW_OT; b.title = h >= 360 ? (lockR ? `Rainbow: unlocks at overtime ★${RAINBOW_OT}` : 'Rainbow (unstable)') : ''; if (lockR) { b.textContent = '🔒'; b.style.opacity = .6; } b.onclick = () => { sfx('click'); if (lockR) { toast('LOCKED', `Rainbow unlocks at overtime ★${RAINBOW_OT}. Keep playing past level ${LEVEL_CAP}.`); return; } myHue = h; saveMe(); }; col.append(b); }
+  for (const h of HUES) { const b = document.createElement('button'); b.className = 'sw' + (myHue === h ? ' on' : ''); b.style.background = h >= 360 ? 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)' : `hsl(${h} 70% 55%)`; const lockR = h >= 360 && (stats.lvl || 1) < LEVEL_CAP; b.title = h >= 360 ? (lockR ? `Rainbow: unlocks at level ${LEVEL_CAP}` : 'Rainbow (unstable)') : ''; if (lockR) { b.textContent = '🔒'; b.style.opacity = .6; } b.onclick = () => { sfx('click'); if (lockR) { toast('LOCKED', `Rainbow unlocks at level ${LEVEL_CAP}.`); return; } myHue = h; saveMe(); }; col.append(b); }
   const rows = [['meshape', SHAPES, 0], ['meeyes', EYES, 1], ['memouth', MOUTHS, 2]];
   for (const [id, list, k] of rows) { const r = $(id); r.innerHTML = ''; list.forEach((nm, i) => r.append(opt(nm, look[k] === i, () => { look[k] = i; saveMe(); }))); }
   const tr = $('metitle'); tr.innerHTML = '';
-  TITLES.forEach((t, i) => { const got = titlesHave.includes(i); tr.append(opt(got ? (freshTitles.has(i) ? '✨ NEW: ' : '') + t.name : '🔒 ' + t.how, look[3] === i, () => { if (!got) { toast('LOCKED', t.how + ' to unlock it.'); return; } look[3] = i; saveMe(); }, got ? (freshTitles.has(i) ? ' freshT' : '') : ' locked')); });
+  TITLES.forEach((t, i) => { if (t.cut) return; const got = titlesHave.includes(i); tr.append(opt(got ? (freshTitles.has(i) ? '✨ NEW: ' : '') + t.name : '🔒 ' + t.how, look[3] === i, () => { if (!got) { toast('LOCKED', t.how + ' to unlock it.'); return; } look[3] = i; saveMe(); }, got ? (freshTitles.has(i) ? ' freshT' : '') : ' locked')); });
   $('mesnd').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
   $('memus').textContent = musicOn ? '🎵 Music on' : '🎵 Music off';
   $('mekey').textContent = myKey ? fmtKey(myKey) : '(not made yet)';
-  const q = myQuest && QUESTS[myQuest.i];
-  $('mequest').textContent = q ? `Quest from NPC_02: ${q.text} ${myQuest.have}/${q.n} (reward ${q.coins} coins)` : isUnlocked(patch, 'quests') ? 'No quest. Talk to NPC_02 by the plaza to get one.' : 'Quests arrive in a future patch.';
 }
 function openMe() { send({ t: 'me' }); $('mebtn').classList.remove('pulse'); $('mename').value = myName; renderMe(); $('mep').classList.add('open'); $('bagp').classList.remove('open'); $('shopp').classList.remove('open'); const ft = $('metitle').querySelector('.freshT'); if (ft) setTimeout(() => ft.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150); }
 $('mebtn').onclick = openMe;
@@ -991,17 +984,15 @@ $('invite').onclick = async () => {
   try { await navigator.clipboard.writeText(url); toast('LINK COPIED', 'Send it to someone. More people, bigger slimes.'); } catch { prompt('Copy this link:', url); }
 };
 
-// ---------- things to do near the shop, fountain and NPC_02 ----------
+// ---------- things to do near the DEV DESK and the Hall of Fame ----------
 let actKey = '';
 function updateActions() {
   const me = snapB && snapB.p.get(myId); if (!me) return;
   const acts = [];
   const d = (o) => Math.hypot(me.x - o.x, me.y - o.y);
-  if (isUnlocked(patch, 'shop') && d(SHOP_AT) < 150) acts.push(['🛒 Shop', openShop]);
-  if (isUnlocked(patch, 'fountain') && d(FOUNTAIN_AT) < 130) { acts.push([`🪙 Wish (${WISH_COST})`, () => send({ t: 'wish' })]); }
+  if (isUnlocked(patch, 'shop') && d(SHOP_AT) < 150) acts.push(['🛠 Dev Desk', openShop]);
   if (d(HOF_AT) < 120) acts.push(['🏆 Hall of Fame', () => send({ t: 'hof' })]);
-  if (isUnlocked(patch, 'quests') && d(NPC_AT) < 130) acts.push([myQuest && myQuest.have >= QUESTS[myQuest.i].n ? '✅ Hand in quest' : myQuest ? '📜 Quest (in progress)' : '📜 Get a quest', () => send({ t: 'quest' })]);
-  // walking away from the shop or the Hall of Fame closes its panel
+  // walking away from the DEV DESK or the Hall of Fame closes its panel
   if ($('shopp').classList.contains('open') && d(SHOP_AT) > 200 && d(HOF_AT) > 200) $('shopp').classList.remove('open');
   const key = acts.map((a) => a[0]).join('|');
   if (key === actKey) return; actKey = key;
@@ -1012,7 +1003,7 @@ function renderHof(m) {
   $('shoph').textContent = 'HALL OF FAME';
   $('shopsub').textContent = 'Top 10 on this server, by lifetime numbers. Updated every few seconds. Earned, not bought.';
   const g = $('shopgrid'); g.innerHTML = '';
-  const cats = [['kills', 'Most slimes killed'], ['boss', 'Most bosses (really helped)'], ['ot', 'Most unpaid overtime ★'], ['fin', 'Finished items earned']];
+  const cats = [['kills', 'Most slimes killed'], ['boss', 'Most bosses (really helped)'], ['fin', 'Finished items earned']];
   for (const [k, label] of cats) {
     const d = document.createElement('div'); d.className = 'it'; d.style.gridColumn = '1/-1'; d.style.textAlign = 'left'; d.style.cursor = 'default';
     const b = document.createElement('b'); b.textContent = label; d.append(b);
@@ -1025,43 +1016,30 @@ function renderHof(m) {
 }
 function openShop() { renderShop(); $('shopp').classList.add('open'); $('bagp').classList.remove('open'); $('mep').classList.remove('open'); }
 function renderShop() {
-  const stock = shopStock(Math.floor(Date.now() / 86400000));
-  $('shoph').textContent = 'SHOP (open, barely)';
-  $('shopsub').textContent = `You have ${coins.toLocaleString()} placeholder coins. Rare stock changes daily. No refunds, no receipts, no shop keeper.`;
+  $('shoph').textContent = 'DEV DESK';
+  $('shopsub').textContent = `Spare copies + materials make your held item stronger. You have ▲ ${myRes.poly || 0} polygons and ● ${myRes.vert || 0} vertices. The patch needs them too: your call.`;
   const g = $('shopgrid'); g.innerHTML = '';
-  for (const i of stock) {
-    const it = ITEMS[i], price = PRICES[it.r], have = bag[it.id] > 0;
-    const d = document.createElement('div'); d.className = 'it';
-    const b = document.createElement('b'); b.textContent = it.name; b.style.color = ['', '#2f8a25', '#1f6fc4'][it.r];
-    const r = document.createElement('i'); r.textContent = `${RARITY[it.r].name} · ${price} coins${have ? ' · owned' : ''}`;
-    d.append(iconCanvas(i), b, r); { const fl = fxLine(it); if (fl) d.append(fl); } d.title = it.text;
-    d.onclick = () => { sfx('click'); if (coins < price) { toast('', `Not enough coins. It's ${price}.`); return; } send({ t: 'buy', item: i }); };
-    g.append(d);
-  }
-  // upgrades: spare copies + coins make a held item's effect stronger
-  const uh = document.createElement('div'); uh.style.cssText = 'grid-column:1/-1;font-weight:800;margin-top:10px'; uh.textContent = 'UPGRADE YOUR GEAR (spare copies + coins = a stronger effect)'; g.append(uh);
+  const uh = document.createElement('div'); uh.style.cssText = 'grid-column:1/-1;font-weight:800'; uh.textContent = 'UPGRADE YOUR GEAR'; g.append(uh);
   const mine = ITEMS.map((it, i) => [it, i]).filter(([it]) => it.fx && bag[it.id] > 0).sort((x, y) => (bag[y[0].id] - bag[x[0].id]));
   if (!mine.length) { const e = document.createElement('i'); e.style.cssText = 'grid-column:1/-1;font-style:normal;opacity:.7'; e.textContent = 'Find a held item (hand slot) first. Spare copies of it are what you upgrade with.'; g.append(e); }
   for (const [it, i] of mine) {
-    const lv = myUp[it.id] || 0, maxed = lv >= UPG_MAX, sp = upgSpares(lv), cost = upgCost(it.r, lv), spares = bag[it.id] - 1, ready = !maxed && spares >= sp && coins >= cost;
+    const lv = myUp[it.id] || 0, maxed = lv >= UPG_MAX, sp = upgSpares(lv), cost = upgCost(it.r, lv), spares = bag[it.id] - 1;
+    const enough = (myRes.poly || 0) >= cost.poly && (myRes.vert || 0) >= cost.vert, ready = !maxed && spares >= sp && enough;
     const d = document.createElement('div'); d.className = 'it' + (ready ? ' on' : ''); d.style.gridColumn = 'span 2'; d.style.textAlign = 'left';
     const b = document.createElement('b'); b.textContent = `${it.name} v${lv + 1}`; b.style.color = ['', '#2f8a25', '#1f6fc4', '#b0249e', '#b8860b'][it.r];
     const t = document.createElement('i'); t.className = 'fxl'; t.textContent = `⚡ now: ${fxText(it.fx, lv)}` + (maxed ? '' : `  →  v${lv + 2}: ${fxText(it.fx, lv + 1)}`);
-    const c = document.createElement('i'); c.style.fontWeight = '800'; c.textContent = maxed ? 'FINAL VERSION' : `Needs ${sp} spare${sp > 1 ? 's' : ''} (have ${spares}) + ${cost.toLocaleString()} coins` + (ready ? ' · TAP TO UPGRADE' : '');
+    const c = document.createElement('i'); c.style.fontWeight = '800'; c.textContent = maxed ? 'FINAL VERSION' : `Needs ${sp} spare${sp > 1 ? 's' : ''} (have ${spares}) + ▲ ${cost.poly} + ● ${cost.vert}` + (ready ? ' · TAP TO UPGRADE' : '');
     d.append(b, t, c);
-    d.onclick = () => { sfx('click'); if (maxed) return; if (spares < sp) { toast('', `Find ${sp - spares} more ${it.name} first. Farther rings drop more.`); return; } if (coins < cost) { toast('', `Not enough coins. It's ${cost.toLocaleString()}.`); return; } send({ t: 'upgrade', item: i }); };
+    d.onclick = () => { sfx('click'); if (maxed) return; if (spares < sp) { toast('', `Find ${sp - spares} more ${it.name} first. Farther rings drop more.`); return; } if (!enough) { toast('', `Needs ▲ ${cost.poly} polygons and ● ${cost.vert} vertices. Trees and rocks.`); return; } send({ t: 'upgrade', item: i }); };
     g.append(d);
   }
-  const hd = document.createElement('div'); hd.style.cssText = 'grid-column:1/-1;font-weight:800;margin-top:10px'; hd.textContent = 'SKILLS (cut from launch, sold here instead)'; g.append(hd);
+  const me = snapB && snapB.p.get(myId), lvNow = me ? me.lvl : 1, sk = skillAt(lvNow);
+  const hd = document.createElement('div'); hd.style.cssText = 'grid-column:1/-1;font-weight:800;margin-top:10px'; hd.textContent = `YOUR FIGHTING SKILLS · Lv ${sk}/10 (they grow as you level up)`; g.append(hd);
   for (const S of SKILLS) {
-    const lv = mySk[S.k] || 0, cost = skillCost(lv), maxed = lv >= S.max;
-    const d = document.createElement('div'); d.className = 'it'; d.style.gridColumn = 'span 2'; d.style.textAlign = 'left';
-    const b = document.createElement('b'); b.textContent = `${S.name} · Lv ${lv}/${S.max}`;
+    const d = document.createElement('div'); d.className = 'it'; d.style.gridColumn = 'span 2'; d.style.textAlign = 'left'; d.style.cursor = 'default';
+    const b = document.createElement('b'); b.textContent = `${S.name} · Lv ${sk}/${S.max}`;
     const t = document.createElement('i'); t.textContent = S.text;
-    const c = document.createElement('i'); c.style.fontWeight = '800'; c.textContent = maxed ? 'MAXED' : `Next level: ${cost.toLocaleString()} coins`;
-    d.append(b, t, c);
-    d.onclick = () => { sfx('click'); if (maxed) return; if (coins < cost) { toast('', `Not enough coins. It's ${cost.toLocaleString()}.`); return; } send({ t: 'skill', k: S.k }); };
-    g.append(d);
+    d.append(b, t); g.append(d);
   }
 }
 $('shopx').onclick = () => $('shopp').classList.remove('open');
