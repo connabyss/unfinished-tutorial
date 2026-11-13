@@ -130,11 +130,90 @@
   .llinks { display:flex; justify-content:center; gap:18px; margin:12px 0 4px; font-size:13px; } .llinks a { color:#bfe3ff; }
   #lcode { text-transform:uppercase; letter-spacing:2px; text-align:center; }
   .lfoot { font:600 10px ui-monospace,monospace; opacity:.5; margin-top:8px; }
+
+  /* ===== polish pass (11-13): hand-made game UI. Dark wood HUD with brass trim, parchment panels, drawn icons,
+     Lilita One for titles, Nunito for everything else. The game's placeholder jokes stay; the craft around them doesn't. */
+  :root { --wood1:#3a2a1a; --wood2:#22180f; --brass:#e0b056; --brass-d:#8a6526; --parch:#fbf2d9; --parch2:#f1e2bb; --pline:#c9ad74; --ink:#2b1d10; --title:"Lilita One","Nunito",system-ui,sans-serif; }
+  html,body { font-family:"Nunito",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-weight:700; }
+  svg.ic { width:20px; height:20px; flex:none; stroke:currentColor; fill:none; stroke-width:2.3; stroke-linecap:round; stroke-linejoin:round; }
+  .hud { background:linear-gradient(180deg,rgba(58,42,26,.94),rgba(31,22,14,.94)); border:2px solid #120c06; border-radius:14px; padding:9px 12px;
+    box-shadow:inset 0 0 0 1px rgba(224,176,86,.45), inset 0 1px 0 rgba(255,225,170,.25), 0 6px 16px rgba(0,0,0,.35); text-shadow:0 1px 0 rgba(0,0,0,.6); }
+  #me .name { font:400 17px/1.15 var(--title); letter-spacing:.01em; color:#fff3d6; }
+  #lv { color:#e9d6b0; }
+  .bar { height:9px; background:rgba(0,0,0,.45); border-radius:5px; box-shadow:inset 0 1px 2px rgba(0,0,0,.6), 0 1px 0 rgba(255,220,160,.12); }
+  .bar i { border-radius:5px; background-image:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 55%) !important; }
+  #hp i { background-color:#e8473c; } #xp i { background-color:#f4c23b; } #pb i, .lworld .bar i { background-color:#4fb5ff; }
+  #world b, #me b { color:var(--brass); }
+  #log div { background:rgba(26,18,10,.78); border:1px solid rgba(224,176,86,.22); border-radius:10px; padding:5px 10px; font-weight:700; text-shadow:0 1px 0 rgba(0,0,0,.6); }
+  button { font-family:inherit; font-weight:800; border-radius:13px; background:linear-gradient(180deg,#fff8e6,#f0dcae); color:var(--ink); border:2px solid #3b2812;
+    box-shadow:0 4px 0 #8f6a33, 0 6px 12px rgba(0,0,0,.3); display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+  button:active { transform:translateY(3px); box-shadow:0 1px 0 #8f6a33; }
+  #bar button { height:48px; font-size:16px; padding:0 15px; }
+  #spin, #dash { width:66px; height:66px; flex-direction:column; gap:1px; font:400 13px/1 var(--title); letter-spacing:.02em; color:#fff; text-shadow:0 1px 0 rgba(0,0,0,.5);
+    border:3px solid #1a1108; } #spin.on, #dash.on { display:inline-flex; }
+  #spin { background:radial-gradient(circle at 35% 30%,#ffb35c,#e0631f 70%); box-shadow:0 4px 0 #8a3510, 0 8px 16px rgba(0,0,0,.35); }
+  #dash { background:radial-gradient(circle at 35% 30%,#7fe0ff,#1f8fd0 70%); box-shadow:0 4px 0 #0f4f7a, 0 8px 16px rgba(0,0,0,.35); bottom:calc(142px + env(safe-area-inset-bottom)); }
+  #spin svg.ic, #dash svg.ic { width:24px; height:24px; stroke-width:2.6; }
+  #toast { font:400 clamp(20px,5.4vw,26px)/1.15 var(--title); letter-spacing:.01em; text-shadow:0 3px 0 #1a1108, 0 0 16px rgba(0,0,0,.6); -webkit-text-stroke:1px #1a1108; }
+  #toast small { font:800 15px "Nunito",system-ui; -webkit-text-stroke:0; }
+  #combo b { font-family:var(--title); font-weight:400; -webkit-text-stroke:1.5px #1a1108; }
+  /* parchment panels */
+  #bagp, #mep, #pcard, #shopp { background:linear-gradient(180deg,var(--parch),var(--parch2)); border:3px solid #3b2812; border-radius:18px;
+    box-shadow:inset 0 0 0 3px #fff9ea, inset 0 0 0 4px var(--pline), 0 18px 50px rgba(0,0,0,.55); padding:16px; }
+  #bagp h2, #mep h2, #pcard h2, #shopp h2 { font:400 24px/1.1 var(--title); letter-spacing:.01em; color:var(--ink); margin-bottom:4px; }
+  #mep h3 { font:900 12px "Nunito"; letter-spacing:.12em; color:#8a6526; opacity:1; }
+  #bagp .it, #shopp .it { background:#fffdf5; border:2px solid #e2cf9f; border-radius:12px; box-shadow:0 2px 0 #d6c08b; }
+  #bagp .it.on { border-color:#3b2812; background:#fff1c2; }
+  #bagp .close, #mep .close, #pcard .close, #shopp .close { height:36px; font-size:14px; box-shadow:0 3px 0 #8f6a33; }
+  #mep canvas { background:radial-gradient(circle at 50% 40%,#7ccd6a,#3f8f3d); border:3px solid #3b2812; box-shadow:inset 0 -6px 12px rgba(0,0,0,.18); }
+  #mep input { border:2px solid var(--pline); background:#fffdf5; font-weight:800; }
+  #mep .opt, #pcard .opt { background:#fffdf5; border:2px solid #e2cf9f; box-shadow:0 2px 0 #d6c08b; font-weight:800; }
+  #mep .opt.on { border-color:#3b2812; background:#fff1c2; }
+  #whatsnew .wbox, #deploy .dbox { border:3px solid #1a1108; border-radius:18px; box-shadow:inset 0 0 0 2px var(--brass), 0 18px 50px rgba(0,0,0,.55); }
+  #whatsnew .wbox { background:linear-gradient(180deg,var(--parch),var(--parch2)); color:var(--ink); }
+  #wtitle { font:400 26px/1.1 var(--title); } #wnote { font:700 15px/1.4 "Nunito"; } .wbtns button { font:800 15px "Nunito"; border:2px solid #3b2812; } #wgo { background:linear-gradient(180deg,#ffe07a,#f2b632); }
+  #deploy .dbox { background:linear-gradient(180deg,#3a2a1a,#1f160d); }
+  #dtitle { font:400 20px var(--title); letter-spacing:.06em; } #dcount { font:400 72px var(--title); color:var(--brass); -webkit-text-stroke:2px #1a1108; }
+  #act button { background:linear-gradient(180deg,#ffe07a,#f2b632); }
+  #chatbox input { border:2px solid #3b2812; background:#fffdf5; font-weight:700; }
+  #emotes button { width:48px; }
+  #status { background:radial-gradient(ellipse at center,rgba(40,30,18,.85),rgba(12,9,5,.95)); font:400 22px var(--title); letter-spacing:.02em; }
+  /* the title screen: a wooden sign with a brass rim, a construction strip, and a real logo */
+  #login { background:radial-gradient(ellipse 80% 70% at 50% 45%, rgba(10,14,9,.15), rgba(6,8,5,.82)); }
+  .lbox { position:relative; width:min(100%,420px); background:linear-gradient(180deg,#4a3420 0%,#2c1f12 100%); border:3px solid #120c06; border-radius:22px; padding:34px 22px 16px;
+    box-shadow:inset 0 0 0 2px var(--brass), inset 0 0 0 5px #3a2817, inset 0 2px 0 6px rgba(255,220,160,.08), 0 24px 70px rgba(0,0,0,.7); overflow:hidden; }
+  .lbox::before { content:""; position:absolute; inset:0; pointer-events:none; opacity:.35;
+    background:repeating-linear-gradient(178deg, transparent 0 9px, rgba(0,0,0,.18) 9px 10px, transparent 10px 23px, rgba(255,220,160,.05) 23px 24px); }
+  .lver { position:absolute; left:-40px; right:-40px; top:14px; transform:rotate(-3deg); padding:5px 0; color:#1a1108; font:900 11px/1 "Nunito"; letter-spacing:.14em; opacity:1;
+    background:repeating-linear-gradient(-45deg,#f6c437 0 14px,#1a1108 14px 28px); }
+  .lver span, .lver { text-shadow:none; }
+  .lver { background:linear-gradient(#f6c437,#f6c437) center/62% 100% no-repeat, repeating-linear-gradient(-45deg,#f6c437 0 14px,#1a1108 14px 28px); }
+  .lbox h1 { position:relative; margin:22px 0 4px; font:400 clamp(40px,12vw,54px)/.92 var(--title); letter-spacing:.01em; color:#ffd65a; text-shadow:none;
+    -webkit-text-stroke:2.5px #1a1108; paint-order:stroke fill; filter:drop-shadow(0 4px 0 #1a1108) drop-shadow(0 10px 18px rgba(0,0,0,.5)); }
+  .lbox h1 small { display:block; font-size:.52em; color:#fff3d6; letter-spacing:.06em; margin-bottom:4px; }
+  .lbox h1 .wip { position:absolute; right:2px; top:-6px; transform:rotate(12deg); font:900 11px/1 "Nunito"; letter-spacing:.1em; color:#fff; background:#d9442f; padding:5px 8px; border-radius:6px;
+    -webkit-text-stroke:0; border:2px solid #1a1108; filter:none; box-shadow:0 3px 0 #1a1108; }
+  .ltag { position:relative; font-size:15px; color:#f1e2c4; opacity:1; line-height:1.4; }
+  .lworld { position:relative; background:rgba(0,0,0,.32); border:1px solid rgba(224,176,86,.3); border-radius:12px; color:#f1e2c4; }
+  .lworld b, #lback b { color:var(--brass); }
+  #lnew label { color:#e9d6b0; opacity:1; font-weight:800; }
+  #login input { position:relative; background:#fbf2d9; color:var(--ink); border:2px solid #120c06; box-shadow:inset 0 2px 4px rgba(0,0,0,.25); font:800 19px "Nunito",system-ui; }
+  #lplay { position:relative; font:400 30px/1 var(--title); letter-spacing:.06em; padding:16px; color:#1a1108; border:3px solid #120c06; border-radius:16px;
+    background:linear-gradient(180deg,#ffe58a,#f6b52e 60%,#e89a1a); box-shadow:inset 0 2px 0 rgba(255,255,255,.55), 0 6px 0 #7a4f12, 0 12px 22px rgba(0,0,0,.45); text-shadow:0 1px 0 rgba(255,255,255,.4); }
+  #lplay:active { transform:translateY(4px); box-shadow:inset 0 2px 0 rgba(255,255,255,.55), 0 2px 0 #7a4f12; }
+  .llinks a { color:#ffd98a; font-weight:800; }
+  .lfoot { position:relative; color:#cdb88f; opacity:.75; font:700 10px ui-monospace,Consolas,monospace; }
+  #vig { position:fixed; inset:0; pointer-events:none; background:radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(10,16,6,.38) 100%); }
+  @media (max-width:500px) { #bar button { padding:0 11px; font-size:15px; gap:5px; } svg.ic { width:18px; height:18px; } }
+  @media (max-width:360px) { #bar button { padding:0 8px; font-size:14px; } #bar button svg.ic { display:none; } }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:ital,wght@0,600;0,700;0,800;0,900;1,600&display=swap">
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "1837ae3735e14269a231be8f41f6f0cd"}'></script><!-- End Cloudflare Web Analytics -->
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="vig" aria-hidden="true"></div>
 <div id="me" class="hud">
   <div class="name" id="nm" title="Tap to change your name">…</div>
   <div id="lv">Lv 1</div>
@@ -148,14 +227,14 @@
 <div id="whatsnew"><div class="wbox"><div id="wtitle"></div><div id="wnote"></div><div id="wpart"></div><div class="wbtns"><button id="wgo">Go see it →</button><button id="wok">Keep playing</button></div></div></div>
 <div id="log"></div>
 <div id="bar">
-  <button id="say">💬 Chat</button>
-  <div id="chatbox"><input id="msg" maxlength="80" placeholder="Say something" enterkeyhint="send" autocomplete="off"><button id="send">Send</button></div>
-  <button id="bag">🎒 Bag<span class="dot"></span></button>
-  <button id="mebtn">🎨 Me</button>
-  <button id="invite" style="margin-left:auto">Invite</button>
+  <button id="say"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v10.5H10l-5 4v-4H4z"/></svg>Chat</button>
+  <div id="chatbox"><input id="msg" maxlength="80" placeholder="Say something" enterkeyhint="send" autocomplete="off"><button id="send" aria-label="Send"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12 20 4l-5 16-3-7z"/><path d="m12 13 8-9"/></svg></button></div>
+  <button id="bag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0v11H6z"/><path d="M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/><path d="M9 14h6v3H9z"/></svg>Bag<span class="dot"></span></button>
+  <button id="mebtn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 1.8-1 1.3-2-.6-1.2.2-2.5 1.6-2.5H17a4 4 0 0 0 4-4C21 7 17 3 12 3z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg>Me</button>
+  <button id="invite" style="margin-left:auto"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>Invite</button>
 </div>
 <div id="toast"></div>
-<button id="spin">💥<br>Spin</button><button id="dash">💨<br>Dash</button>
+<button id="spin">Spin</button><button id="dash">Dash</button>
 <div id="act"></div>
 <div id="emotes"><button data-k="0">👋</button><button data-k="1">💃</button><button data-k="2" title="T-pose">🧍</button><button data-k="3">🪑</button><button data-k="4">😭</button></div>
 <div id="pcard"><button class="close" id="pcx">Close</button><h2 id="pcname"></h2><div class="sub" id="pcsub"></div>
@@ -178,7 +257,7 @@
 <div id="login">
   <div class="lbox">
     <div class="lver">v0.0.<span id="lpv">?</span> · EARLY ACCESS (FOREVER)</div>
-    <h1>THE UNFINISHED<br>TUTORIAL</h1>
+    <h1><small>THE UNFINISHED</small>TUTORIAL<span class="wip">WIP</span></h1>
     <div class="ltag">A massively multiplayer tutorial. The rest of the game ships when enough of you show up.</div>
     <div class="lworld"><div><b id="lon">…</b> online now · <b id="ltot">…</b> slimes killed</div><div id="lpt">Checking the patch bar…</div><div class="bar" id="lpb"><i></i></div></div>
     <div id="lnew"><label for="lname">Name</label><input id="lname" maxlength="16" autocomplete="off" spellcheck="false"></div>
@@ -194,6 +273,8 @@ import { ITEMS, RARITY, PATCHES, SHAPES, EYES, MOUTHS, TITLES, SLOTS, SLOT_NAMES
 {
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const $ = (id) => document.getElementById(id);
+const IC_DASH = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h10a3 3 0 1 0-3-3"/><path d="M3 12.5h15a3 3 0 1 1-3 3"/><path d="M3 17h7"/></svg>';
+const IC_SPIN = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/><path d="m12 9 1 2.2 2.4.3-1.8 1.6.5 2.4-2.1-1.2-2.1 1.2.5-2.4-1.8-1.6 2.4-.3z"/></svg>';
 let W = 1600, H = 1200, DPR = 1, vw = 0, vh = 0;
 function resize() { DPR = Math.min(2, window.devicePixelRatio || 1); vw = innerWidth; vh = innerHeight; cv.width = vw * DPR; cv.height = vh * DPR; }
 addEventListener('resize', resize); resize();
@@ -587,16 +668,16 @@ function drawNode(n, now) {
       if (n.tier === 2) { cx.fillStyle = '#c9a227'; for (const [x, y] of [[-6, -8], [5, -12], [8, -4]]) { cx.beginPath(); cx.arc(x, y, 1.8, 0, 7); cx.fill(); } }
     }
   }
-  if (n.tier && !dead) { cx.fillStyle = n.tier === 1 ? '#ffb02e' : '#ff4b4b'; cx.font = '800 10px system-ui'; cx.textAlign = 'center'; cx.fillText(n.tier === 1 ? '★' : '★★', 0, 12); }
+  if (n.tier && !dead) { cx.fillStyle = n.tier === 1 ? '#ffb02e' : '#ff4b4b'; cx.font = '800 10px Nunito,system-ui'; cx.textAlign = 'center'; cx.fillText(n.tier === 1 ? '★' : '★★', 0, 12); }
   cx.restore();
   const me = snapB && snapB.p.get(myId);
-  if (me && (myGather === n.id || Math.hypot(me.x - n.x, me.y - n.y) < 70)) { cx.font = '700 11px system-ui'; cx.textAlign = 'center'; const lock = myScav.lvl < NODE_REQ[n.tier]; const t = dead ? 'used up (grows back)' : lock ? `🔒 Scavenging ${NODE_REQ[n.tier]}` : NODE_NAMES[n.k][n.tier]; cx.fillStyle = 'rgba(0,0,0,.55)'; const w = cx.measureText(t).width + 8; cx.fillRect(n.x - w / 2, n.y - 64, w, 15); cx.fillStyle = '#fff'; cx.fillText(t, n.x, n.y - 53); }
+  if (me && (myGather === n.id || Math.hypot(me.x - n.x, me.y - n.y) < 70)) { cx.font = '700 11px Nunito,system-ui'; cx.textAlign = 'center'; const lock = myScav.lvl < NODE_REQ[n.tier]; const t = dead ? 'used up (grows back)' : lock ? `🔒 Scavenging ${NODE_REQ[n.tier]}` : NODE_NAMES[n.k][n.tier]; cx.fillStyle = 'rgba(0,0,0,.55)'; const w = cx.measureText(t).width + 8; cx.fillRect(n.x - w / 2, n.y - 64, w, 15); cx.fillStyle = '#fff'; cx.fillText(t, n.x, n.y - 53); }
 }
 function drawBuildSite(now) {
   const b = BUILD_AT; cx.save(); cx.translate(b.x, b.y);
   cx.strokeStyle = '#ffb02e'; cx.lineWidth = 3; cx.setLineDash([8, 6]); cx.strokeRect(-70, -45, 140, 90); cx.setLineDash([]);
   cx.fillStyle = '#b8864a'; cx.fillRect(-22, -18, 44, 30); cx.strokeStyle = '#7a5530'; cx.lineWidth = 2; cx.strokeRect(-22, -18, 44, 30); cx.beginPath(); cx.moveTo(-22, -18); cx.lineTo(22, 12); cx.moveTo(22, -18); cx.lineTo(-22, 12); cx.stroke();
-  cx.fillStyle = '#ffd34d'; cx.fillRect(-60, -70, 120, 20); cx.fillStyle = '#222'; cx.font = '800 11px system-ui'; cx.textAlign = 'center'; cx.fillText('BUILD SITE', 0, -56); cx.fillStyle = '#fff'; cx.font = '700 10px system-ui'; cx.fillText('walk in with ▲ polygons + ● vertices', 0, 30);
+  cx.fillStyle = '#ffd34d'; cx.fillRect(-60, -70, 120, 20); cx.fillStyle = '#222'; cx.font = '800 11px Nunito,system-ui'; cx.textAlign = 'center'; cx.fillText('BUILD SITE', 0, -56); cx.fillStyle = '#fff'; cx.font = '700 10px Nunito,system-ui'; cx.fillText('walk in with ▲ polygons + ● vertices', 0, 30);
   cx.restore();
   if (patch >= 1 && ((myRes.poly || 0) + (myRes.vert || 0)) > 0) { const k = (Math.sin(now / 200) + 1) / 2; cx.strokeStyle = `rgba(255,211,77,${0.4 + 0.5 * k})`; cx.lineWidth = 3; cx.beginPath(); cx.arc(b.x, b.y, 80 + 6 * k, 0, 7); cx.stroke(); }
 } // first copies found since you last looked in the bag
@@ -650,7 +731,7 @@ function renderBag() {
       const have = bag[it.id] > 0, on = wear[it.slot] === it.id;
       if (giveTo != null && !have) return;
       const d = document.createElement('div'); d.className = 'it' + (on ? ' on' : '') + (have ? '' : ' no') + (freshItems.has(it.id) ? ' fresh' : '');
-      const c = have ? iconCanvas(i) : (() => { const c2 = document.createElement('canvas'); c2.width = 112; c2.height = 112; const k = c2.getContext('2d'); k.fillStyle = '#bbb'; k.font = '800 52px system-ui'; k.textAlign = 'center'; k.fillText('?', 56, 76); return c2; })();
+      const c = have ? iconCanvas(i) : (() => { const c2 = document.createElement('canvas'); c2.width = 112; c2.height = 112; const k = c2.getContext('2d'); k.fillStyle = '#bbb'; k.font = '800 52px Nunito,system-ui'; k.textAlign = 'center'; k.fillText('?', 56, 76); return c2; })();
       const b = document.createElement('b'); b.textContent = have ? it.name + ver(it) : '???'; b.style.color = have && it.r ? ['', '#2f8a25', '#1f6fc4', '#b0249e', '#b8860b'][it.r] : '';
       const goal = GOALS[it.id], gv = goal ? Math.min(goal.n, stats[goal.k] || 0) : 0;
       const r = document.createElement('i'); r.textContent = have ? `${RARITY[it.r].name}${bag[it.id] > 1 ? ' · ×' + bag[it.id] : ''}${on ? ' · wearing' : ''}${isBound(it) ? ' · bound' : ''}`
@@ -683,7 +764,7 @@ addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT') return; c
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 setInterval(() => { if (!keys.size || myId == null) return; const me = snapB && snapB.p.get(myId); if (!me) return; const dx = (keys.has('d') || keys.has('arrowright')) - (keys.has('a') || keys.has('arrowleft')), dy = (keys.has('s') || keys.has('arrowdown')) - (keys.has('w') || keys.has('arrowup')); if (dx || dy) send({ t: 'go', x: me.x + dx * 60, y: me.y + dy * 60 }); }, 120);
 addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target !== $('msg')) { e.preventDefault(); $('spin').click(); } });
-setInterval(() => { const me = snapB && snapB.p.get(myId); const show = !!me && !$('chatbox').classList.contains('open'); $('spin').classList.toggle('on', show); $('dash').classList.toggle('on', show); const dl = dashCd(mySk.dash) - myGear().dash - (performance.now() - dashAt); $('dash').classList.toggle('cd', dl > 0); $('dash').innerHTML = dl > 0 ? '💨<br>' + (dl / 1000).toFixed(1) + 's' : '💨<br>Dash'; const left = spinCd(mySk.spin) - (performance.now() - spinAt); $('spin').classList.toggle('cd', left > 0); $('spin').innerHTML = left > 0 ? '💥<br>' + Math.ceil(left / 1000) + 's' : '💥<br>Spin'; }, 200);
+setInterval(() => { const me = snapB && snapB.p.get(myId); const show = !!me && !$('chatbox').classList.contains('open'); $('spin').classList.toggle('on', show); $('dash').classList.toggle('on', show); const dl = dashCd(mySk.dash) - myGear().dash - (performance.now() - dashAt); $('dash').classList.toggle('cd', dl > 0); $('dash').innerHTML = IC_DASH + (dl > 0 ? (dl / 1000).toFixed(1) + 's' : 'Dash'); const left = spinCd(mySk.spin) - (performance.now() - spinAt); $('spin').classList.toggle('cd', left > 0); $('spin').innerHTML = IC_SPIN + (left > 0 ? Math.ceil(left / 1000) + 's' : 'Spin'); }, 200);
 $('bag').onclick = () => { send({ t: 'me' }); giveTo = null; $('bag').classList.remove('new'); renderBag(); $('bagp').classList.add('open'); $('bagp').scrollTop = 0; const f1 = $('baggrid').querySelector('.fresh'); if (f1) setTimeout(() => f1.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150); $('mep').classList.remove('open'); $('shopp').classList.remove('open'); };
 $('bagx').onclick = () => { giveTo = null; $('bagp').classList.remove('open'); freshItems.clear(); };
 
@@ -702,7 +783,7 @@ function drawHat(g, i, now) {
     case 'wire': g.strokeStyle = '#39ff6a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-11, -14); g.lineTo(-11, -28); g.lineTo(-5, -20); g.lineTo(0, -31); g.lineTo(5, -20); g.lineTo(11, -28); g.lineTo(11, -14); g.closePath(); g.moveTo(-11, -14); g.lineTo(5, -20); g.moveTo(11, -14); g.lineTo(-5, -20); g.stroke(); break;
     case 'notex': g.beginPath(); g.moveTo(-11, -12); g.lineTo(0, -38); g.lineTo(11, -12); g.closePath(); g.save(); g.clip(); checker(g, -11, -38, 22, 26, 6); g.restore(); g.stroke(); break;
     case 'todo': g.setLineDash([3, 2]); g.strokeStyle = '#ff7bf0'; g.strokeRect(-10, -30, 20, 16); g.setLineDash([]); g.font = '700 9px ui-monospace,Consolas,monospace'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.7)'; g.strokeText('// TODO: hat', 0, -34); g.fillStyle = '#ff7bf0'; g.fillText('// TODO: hat', 0, -34); break;
-    case 'paper': g.fillStyle = '#ffe36b'; g.beginPath(); g.moveTo(-11, -12); g.lineTo(-11, -24); g.lineTo(-6, -18); g.lineTo(0, -27); g.lineTo(6, -18); g.lineTo(11, -24); g.lineTo(11, -12); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#999'; g.font = '600 4px system-ui'; g.textAlign = 'center'; g.fillText('PRINTED', 0, -14); break;
+    case 'paper': g.fillStyle = '#ffe36b'; g.beginPath(); g.moveTo(-11, -12); g.lineTo(-11, -24); g.lineTo(-6, -18); g.lineTo(0, -27); g.lineTo(6, -18); g.lineTo(11, -24); g.lineTo(11, -12); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#999'; g.font = '600 4px Nunito,system-ui'; g.textAlign = 'center'; g.fillText('PRINTED', 0, -14); break;
     case 'cone': g.fillStyle = '#ff7a1a'; g.beginPath(); g.moveTo(-10, -12); g.lineTo(0, -40); g.lineTo(10, -12); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#fff'; g.fillRect(-6, -24, 12, 4); break;
     case 'phones': g.lineWidth = 3; g.strokeStyle = '#222'; g.beginPath(); g.arc(0, -4, 15, Math.PI * 1.05, Math.PI * 1.95); g.stroke(); g.fillStyle = '#e04a3a'; g.lineWidth = 1.5; g.strokeStyle = '#1b1f17'; g.beginPath(); g.roundRect(-18, -8, 6, 11, 2); g.roundRect(12, -8, 6, 11, 2); g.fill(); g.stroke(); break;
     case 'prop': { g.fillStyle = '#3d7bff'; g.beginPath(); g.arc(0, -12, 10, Math.PI, 0); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#ffd34d'; g.fillRect(-2, -26, 4, 5); const a = now / 60; g.fillStyle = '#e04a3a'; g.save(); g.translate(0, -27); g.scale(1, 0.35); g.rotate(a); g.fillRect(-14, -2, 28, 4); g.restore(); break; }
@@ -710,7 +791,7 @@ function drawHat(g, i, now) {
     case 'halo': g.strokeStyle = 'rgba(255,240,150,.95)'; g.lineWidth = 3; g.shadowColor = '#fff3a0'; g.shadowBlur = 8; g.beginPath(); g.ellipse(0, -24 + Math.sin(now / 400) * 1.5, 11, 4, 0, 0, 7); g.stroke(); g.shadowBlur = 0; break;
     case 'wizard': g.fillStyle = '#4b2bbf'; g.beginPath(); g.moveTo(-15, -11); g.lineTo(15, -11); g.lineTo(4, -24); g.lineTo(9, -42); g.lineTo(-6, -24); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#ffd34d'; g.font = '700 6px ui-monospace'; g.textAlign = 'center'; g.fillText('404', 0, -16); break;
     case 'crt': g.fillStyle = '#cfc6a8'; g.beginPath(); g.roundRect(-16, -38, 32, 26, 3); g.fill(); g.stroke(); g.fillStyle = '#16301e'; g.fillRect(-12, -35, 24, 18); g.fillStyle = '#5cff7a'; g.font = '700 5px ui-monospace'; g.textAlign = 'left'; g.fillText('LOADING', -11, -27); g.fillRect(-11, -24, ((now / 40) % 22), 3); break;
-    case 'hardhat': g.fillStyle = '#ffb81f'; g.beginPath(); g.arc(0, -13, 13, Math.PI, 0); g.closePath(); g.fill(); g.stroke(); g.fillRect(-17, -14, 34, 4); g.strokeRect(-17, -14, 34, 4); g.fillStyle = '#e09a00'; g.fillRect(-2, -26, 4, 12); g.fillStyle = '#1b1f17'; g.font = '700 4px system-ui'; g.textAlign = 'center'; g.fillText('WIP', 0, -17); break;
+    case 'hardhat': g.fillStyle = '#ffb81f'; g.beginPath(); g.arc(0, -13, 13, Math.PI, 0); g.closePath(); g.fill(); g.stroke(); g.fillRect(-17, -14, 34, 4); g.strokeRect(-17, -14, 34, 4); g.fillStyle = '#e09a00'; g.fillRect(-2, -26, 4, 12); g.fillStyle = '#1b1f17'; g.font = '700 4px Nunito,system-ui'; g.textAlign = 'center'; g.fillText('WIP', 0, -17); break;
     case 'realhat': { const gr = g.createLinearGradient(-12, -36, 12, -14); gr.addColorStop(0, '#7a4a20'); gr.addColorStop(0.5, '#c58a4a'); gr.addColorStop(1, '#5a3412'); g.fillStyle = gr; g.beginPath(); g.ellipse(0, -14, 17, 4.5, 0, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.moveTo(-9, -14); g.bezierCurveTo(-10, -34, 10, -34, 9, -14); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#2b1a0c'; g.fillRect(-9, -19, 18, 3); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-6, -30, 2, 10); const t = (now / 500) % 1; g.fillStyle = `rgba(255,236,150,${1 - t})`; g.beginPath(); g.arc(10, -34 - t * 8, 2, 0, 7); g.fill(); break; }
   }
   g.restore();
@@ -731,7 +812,7 @@ function drawHand(g, i) {
     case 'mop': g.fillStyle = '#a07a4a'; g.fillRect(-1.5, -30, 3, 32); g.fillStyle = '#e8e3d0'; for (let k = -5; k <= 5; k += 2.5) { g.fillRect(k - 1, -40, 2, 11); } g.strokeRect(-6, -40, 12, 11); break;
     case 'umbrella': g.fillStyle = '#e04a3a'; g.beginPath(); g.arc(0, -26, 13, Math.PI, 0); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#333'; g.fillRect(-1, -26, 2, 26); g.beginPath(); g.arc(-3, 0, 3, 0, Math.PI); g.stroke(); break;
     case 'laser': g.fillStyle = '#333'; g.fillRect(-2.5, -6, 5, 10); g.strokeStyle = '#ff2a2a'; g.shadowColor = '#ff2a2a'; g.shadowBlur = 8; g.lineWidth = 2.5; g.beginPath(); g.moveTo(0, -6); g.lineTo(0, -40); g.stroke(); g.shadowBlur = 0; break;
-    case 'hammer': g.fillStyle = '#7a5530'; g.fillRect(-1.5, -24, 3, 26); g.fillStyle = '#8a8d93'; g.fillRect(-10, -34, 20, 11); g.strokeRect(-10, -34, 20, 11); g.fillStyle = '#ff3b3b'; g.font = '800 6px system-ui'; g.textAlign = 'center'; g.fillText('BAN', 0, -26); break;
+    case 'hammer': g.fillStyle = '#7a5530'; g.fillRect(-1.5, -24, 3, 26); g.fillStyle = '#8a8d93'; g.fillRect(-10, -34, 20, 11); g.strokeRect(-10, -34, 20, 11); g.fillStyle = '#ff3b3b'; g.font = '800 6px Nunito,system-ui'; g.textAlign = 'center'; g.fillText('BAN', 0, -26); break;
     case 'wand': g.fillStyle = '#2b2b2b'; g.fillRect(-1.5, -26, 3, 28); g.fillStyle = '#ff7bf0'; g.font = '800 8px ui-monospace'; g.textAlign = 'center'; g.fillText('NaN', 0, -30); break;
     case 'realsword': { const sw = Math.sin(performance.now() / 120) * 0.08; g.rotate(sw); const gr = g.createLinearGradient(-3, 0, 3, 0); gr.addColorStop(0, '#9aa3ad'); gr.addColorStop(0.5, '#ffffff'); gr.addColorStop(1, '#8a929c'); g.fillStyle = gr; g.beginPath(); g.moveTo(-3, -5); g.lineTo(-3, -32); g.lineTo(0, -38); g.lineTo(3, -32); g.lineTo(3, -5); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#ffd700'; g.fillRect(-9, -6, 18, 3.5); g.strokeRect(-9, -6, 18, 3.5); g.fillStyle = '#5a3412'; g.fillRect(-1.5, -2, 3, 6); g.fillStyle = '#e04a3a'; g.beginPath(); g.arc(0, 5, 2, 0, 7); g.fill(); break; }
     default: g.fillStyle = '#c9b48a'; g.fillRect(-2, -22, 4, 22);
@@ -751,10 +832,10 @@ function drawBack(g, i, now, moving) {
       else { g.fillStyle = it.id === 'cape' ? '#c0392b' : it.id === 'greycape' ? '#9a9ea6' : (() => { const gr = g.createLinearGradient(-14, 0, 14, 24); gr.addColorStop(0, '#2a1a6e'); gr.addColorStop(1, '#7d3cff'); return gr; })(); g.fill(); }
       g.stroke(); if (it.id === 'realcape') { g.strokeStyle = '#ffd700'; g.beginPath(); g.moveTo(-11, -6); g.lineTo(11, -6); g.stroke(); }
       break; }
-    case 'pack': g.fillStyle = '#7a5530'; g.beginPath(); g.roundRect(-11, -6, 22, 22, 4); g.fill(); g.stroke(); g.fillStyle = '#5a3a1a'; g.fillRect(-8, 2, 16, 5); g.fillStyle = '#fff'; g.font = '700 4px system-ui'; g.textAlign = 'center'; g.fillText('0/0', 0, 13); break;
+    case 'pack': g.fillStyle = '#7a5530'; g.beginPath(); g.roundRect(-11, -6, 22, 22, 4); g.fill(); g.stroke(); g.fillStyle = '#5a3a1a'; g.fillRect(-8, 2, 16, 5); g.fillStyle = '#fff'; g.font = '700 4px Nunito,system-ui'; g.textAlign = 'center'; g.fillText('0/0', 0, 13); break;
     case 'scaffold': g.strokeStyle = '#d98a1f'; g.lineWidth = 2; g.beginPath(); for (const x of [-14, 14]) { g.moveTo(x, -16); g.lineTo(x, 18); } for (const y of [-14, 0, 14]) { g.moveTo(-14, y); g.lineTo(14, y); } g.moveTo(-14, -14); g.lineTo(14, 0); g.moveTo(-14, 0); g.lineTo(14, 14); g.stroke(); g.fillStyle = '#9b6b3c'; g.fillRect(-16, -1, 32, 3); break;
     case 'hoodie': g.fillStyle = '#3a3f4a'; g.beginPath(); g.arc(0, -4, 17, Math.PI * 0.9, Math.PI * 2.1); g.lineTo(13, 12); g.lineTo(-13, 12); g.closePath(); g.fill(); g.stroke(); break;
-    case 'jetpack': g.fillStyle = '#9aa3ad'; for (const x of [-12, 4]) { g.beginPath(); g.roundRect(x, -8, 8, 20, 3); g.fill(); g.stroke(); } if ((now / 300 | 0) % 4 === 0) { g.fillStyle = 'rgba(200,200,200,.6)'; g.beginPath(); g.arc(-8, 18, 3, 0, 7); g.arc(8, 19, 2.5, 0, 7); g.fill(); } g.fillStyle = '#ff3b3b'; g.font = '700 4px system-ui'; g.textAlign = 'center'; g.fillText('EMPTY', 0, 4); break;
+    case 'jetpack': g.fillStyle = '#9aa3ad'; for (const x of [-12, 4]) { g.beginPath(); g.roundRect(x, -8, 8, 20, 3); g.fill(); g.stroke(); } if ((now / 300 | 0) % 4 === 0) { g.fillStyle = 'rgba(200,200,200,.6)'; g.beginPath(); g.arc(-8, 18, 3, 0, 7); g.arc(8, 19, 2.5, 0, 7); g.fill(); } g.fillStyle = '#ff3b3b'; g.font = '700 4px Nunito,system-ui'; g.textAlign = 'center'; g.fillText('EMPTY', 0, 4); break;
     case 'wings': { const f = Math.sin(now / 180) * 0.25; g.strokeStyle = '#555'; g.lineWidth = 1; for (const sx of [-1, 1]) { g.save(); g.scale(sx, 1); g.rotate(-f); for (const o of [0, 1]) { g.beginPath(); g.moveTo(6, -4 + o); g.quadraticCurveTo(26, -26 + o, 34, -8 + o); g.quadraticCurveTo(24, -4, 26, 6 + o); g.quadraticCurveTo(16, 0, 6, 4 + o); g.stroke(); } g.restore(); } break; }
   }
   g.restore();
@@ -767,7 +848,7 @@ function drawPet(g, i, now) {
     case 'pcube': g.fillStyle = '#a9a9a9'; g.fillRect(-6, -6, 12, 12); g.strokeRect(-6, -6, 12, 12); break;
     case 'pcursor': g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-4, -8); g.lineTo(-4, 6); g.lineTo(-1, 3); g.lineTo(2, 9); g.lineTo(4, 8); g.lineTo(1, 2); g.lineTo(5, 2); g.closePath(); g.fill(); g.stroke(); break;
     case 'pbug': { const l = Math.sin(now / 60) * 1.5; g.strokeStyle = '#1b1f17'; g.beginPath(); for (const y of [-3, 0, 3]) { g.moveTo(-4, y); g.lineTo(-8, y + l); g.moveTo(4, y); g.lineTo(8, y - l); } g.stroke(); g.fillStyle = '#e04a3a'; g.beginPath(); g.ellipse(0, 0, 5, 6, 0, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#1b1f17'; g.beginPath(); g.arc(-1.5, -2, 1, 0, 7); g.arc(1.5, 1.5, 1, 0, 7); g.fill(); break; }
-    case 'pguy': g.fillStyle = '#f4f1e6'; g.beginPath(); g.arc(0, 0, 7, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#1b1f17'; g.beginPath(); g.arc(-2.5, -1.5, 1, 0, 7); g.arc(2.5, -1.5, 1, 0, 7); g.fill(); g.fillStyle = '#ffd34d'; g.font = '900 9px system-ui'; g.textAlign = 'center'; g.fillText('!', 0, -9); break;
+    case 'pguy': g.fillStyle = '#f4f1e6'; g.beginPath(); g.arc(0, 0, 7, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#1b1f17'; g.beginPath(); g.arc(-2.5, -1.5, 1, 0, 7); g.arc(2.5, -1.5, 1, 0, 7); g.fill(); g.fillStyle = '#ffd34d'; g.font = '900 9px Nunito,system-ui'; g.textAlign = 'center'; g.fillText('!', 0, -9); break;
     case 'ptex': g.beginPath(); g.ellipse(0, 0, 9, 7.5, 0, 0, 7); g.save(); g.clip(); checker(g, -9, -8, 18, 16, 4); g.restore(); g.stroke(); g.fillStyle = '#fff'; g.beginPath(); g.arc(-3, -1, 1.5, 0, 7); g.arc(3, -1, 1.5, 0, 7); g.fill(); break;
     case 'realpet': { const b = Math.sin(now / 300); g.fillStyle = '#ffb347'; g.beginPath(); g.ellipse(0, 0, 9, 7, 0, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.moveTo(-7, -4); g.lineTo(-5, -11); g.lineTo(-2, -6); g.moveTo(7, -4); g.lineTo(5, -11); g.lineTo(2, -6); g.fill(); g.stroke(); g.fillStyle = '#1b1f17'; g.beginPath(); g.arc(-3, -1, 1.3, 0, 7); g.arc(3, -1, 1.3, 0, 7); g.fill(); g.strokeStyle = '#ffd700'; g.lineWidth = 1; g.beginPath(); g.ellipse(0, -15 + b, 5, 1.6, 0, 0, 7); g.stroke(); break; }
   }
@@ -1080,7 +1161,7 @@ function interp(kind, id) {
 }
 function wrapText(t, max) { const words = t.split(' '), lines = []; let line = ''; for (const w of words) { const test = line ? line + ' ' + w : w; if (cx.measureText(test).width > max && line) { lines.push(line); line = w; } else line = test; } if (line) lines.push(line); return lines; }
 function bubble(x, y, text, col) {
-  cx.font = '600 13px system-ui,sans-serif';
+  cx.font = '600 13px Nunito,system-ui,sans-serif';
   const lines = wrapText(text, 180), lh = 16, w = Math.max(...lines.map((l) => cx.measureText(l).width)) + 16, h = lines.length * lh + 10;
   const cam = camera(); let bx = x - w / 2; const by = y - h - 8;
   bx = Math.max(cam.x + 6, Math.min(cam.x + vw - w - 6, bx));
@@ -1127,10 +1208,10 @@ function drawPlayer(p, now) {
 function drawTag(p) {
   if (p.tagX == null) return;
   const isMe = p.id === myId, tag = p.name + ' · ' + p.lvl + (p.ot ? '★' + p.ot : '') + (p.more ? `  +${p.more}` : '');
-  cx.font = (isMe ? '700 ' : '600 ') + '12px system-ui,sans-serif'; cx.textAlign = 'center';
+  cx.font = (isMe ? '700 ' : '600 ') + '12px Nunito,system-ui,sans-serif'; cx.textAlign = 'center';
   cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText(tag, p.tagX, p.tagY); cx.fillStyle = p.ot >= 100 ? `hsl(${(performance.now() / 8) % 360} 90% 70%)` : p.ot >= 25 ? '#ffd700' : isMe ? '#ffd34d' : '#fff'; cx.fillText(tag, p.tagX, p.tagY);
   const ti = p.look && p.look[3];
-  if (ti > 0 && TITLES[ti]) { const t = '«' + TITLES[ti].name + '»'; cx.font = 'italic 600 10px system-ui,sans-serif'; cx.strokeText(t, p.tagX, p.tagY + 12); cx.fillStyle = '#bfe3ff'; cx.fillText(t, p.tagX, p.tagY + 12); }
+  if (ti > 0 && TITLES[ti]) { const t = '«' + TITLES[ti].name + '»'; cx.font = 'italic 600 10px Nunito,system-ui,sans-serif'; cx.strokeText(t, p.tagX, p.tagY + 12); cx.fillStyle = '#bfe3ff'; cx.fillText(t, p.tagX, p.tagY + 12); }
 }
 const RELEASE = 96;
 const KR = { [RELEASE]: 54, [BOSS]: 42, [BOSS2]: 46, [TODO]: 20, [FAST]: 11, [BIG]: 27, [BUG]: 14 };
@@ -1149,7 +1230,7 @@ function drawSlime(s, now) {
     const R = wd.r || r + 24;
     cx.strokeStyle = `rgba(255,60,60,${0.5 + 0.4 * wk})`; cx.lineWidth = wd.pid === myId ? 3 : 1.5; cx.setLineDash([6, 5]); cx.beginPath(); cx.arc(0, 0, R, 0, 7); cx.stroke(); cx.setLineDash([]);
     cx.fillStyle = `rgba(255,60,60,${0.18 * wk})`; cx.beginPath(); cx.arc(0, 0, R * Math.min(1, wk), 0, 7); cx.fill();
-    cx.font = '900 22px system-ui,sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#000'; cx.strokeText('!', 0, -r - 14 - wk * 6); cx.fillStyle = '#ff4a4a'; cx.fillText('!', 0, -r - 14 - wk * 6);
+    cx.font = '900 22px Nunito,system-ui,sans-serif'; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#000'; cx.strokeText('!', 0, -r - 14 - wk * 6); cx.fillStyle = '#ff4a4a'; cx.fillText('!', 0, -r - 14 - wk * 6);
     const sqz = Math.min(1, wk) * 0.28; cx.scale(1 + sqz, 1 - sqz);
   }
   const windFlash = wk >= 0 && wk <= 1 && Math.floor(now / 70) % 2 === 0;
@@ -1202,14 +1283,19 @@ function drawSlime(s, now) {
   if (showLabel) { cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.55)'; cx.strokeText(label, s.x, ly); cx.fillStyle = k === RELEASE ? '#ffd700' : boss ? '#ff7bf0' : knight ? '#ffb0b0' : todo ? '#ffffff' : k === LAG ? '#cfe6ff' : '#e8ffe0'; cx.fillText(label, s.x, ly); }
   // danger tier: an orange or red ring under tougher slimes, plus stars over their name
   if (s.tier === 1 || s.tier === 2) { cx.strokeStyle = s.tier === 2 ? 'rgba(255,60,60,.9)' : 'rgba(255,176,46,.9)'; cx.lineWidth = 2.5; cx.beginPath(); cx.ellipse(s.x, s.y + r * 0.75, r + 3, r * 0.4 + 2, 0, 0, 7); cx.stroke();
-    cx.font = '900 11px system-ui'; cx.fillStyle = s.tier === 2 ? '#ff5c5c' : '#ffb02e'; cx.fillText(s.tier === 2 ? '★★' : '★', s.x, ly - (showLabel ? 12 : 0)); }
+    cx.font = '900 11px Nunito,system-ui'; cx.fillStyle = s.tier === 2 ? '#ff5c5c' : '#ffb02e'; cx.fillText(s.tier === 2 ? '★★' : '★', s.x, ly - (showLabel ? 12 : 0)); }
   if (s.hp < s.max || big) { const bw = big ? 90 : k === BIG ? 44 : 28; cx.fillStyle = 'rgba(0,0,0,.5)'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw, 5); cx.fillStyle = boss ? '#ff00dc' : knight ? '#ff5c5c' : '#7be36a'; cx.fillRect(s.x - bw / 2, s.y + r + 4, bw * Math.max(0, s.hp) / s.max, 5); }
 }
 function drawSign(s) {
-  cx.fillStyle = '#7a5530'; cx.fillRect(s.x - 3, s.y - 6, 6, 22);
-  cx.font = '800 9px system-ui,sans-serif'; const w = cx.measureText(s.title).width + 14;
-  cx.fillStyle = '#c99a5b'; cx.strokeStyle = '#4a3218'; cx.lineWidth = 2; cx.beginPath(); cx.roundRect(s.x - w / 2, s.y - 26, w, 22, 4); cx.fill(); cx.stroke();
-  cx.fillStyle = '#3a2610'; cx.textAlign = 'center'; cx.fillText(s.title, s.x, s.y - 12);
+  cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(s.x + 2, s.y + 16, 9, 3, 0, 0, 7); cx.fill();
+  cx.fillStyle = '#5e3f1f'; cx.fillRect(s.x - 3, s.y - 6, 6, 22); cx.fillStyle = '#7a5530'; cx.fillRect(s.x - 3, s.y - 6, 2, 22);
+  cx.font = '900 9px Nunito,system-ui,sans-serif'; const w = cx.measureText(s.title).width + 16, x0 = s.x - w / 2, y0 = s.y - 27;
+  cx.fillStyle = 'rgba(0,0,0,.25)'; cx.beginPath(); cx.roundRect(x0 + 1, y0 + 3, w, 22, 5); cx.fill();
+  const gr = cx.createLinearGradient(0, y0, 0, y0 + 22); gr.addColorStop(0, '#dcae6c'); gr.addColorStop(1, '#b07f43');
+  cx.fillStyle = gr; cx.strokeStyle = '#3e2810'; cx.lineWidth = 2; cx.beginPath(); cx.roundRect(x0, y0, w, 22, 5); cx.fill(); cx.stroke();
+  cx.strokeStyle = 'rgba(90,55,20,.35)'; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(x0 + 4, y0 + 7.5); cx.lineTo(x0 + w - 4, y0 + 7.5); cx.moveTo(x0 + 4, y0 + 16.5); cx.lineTo(x0 + w - 4, y0 + 16.5); cx.stroke();
+  cx.fillStyle = '#4a3218'; for (const nx of [x0 + 4.5, x0 + w - 4.5]) { cx.beginPath(); cx.arc(nx, y0 + 11, 1.3, 0, 7); cx.fill(); }
+  cx.fillStyle = '#2e1c0a'; cx.textAlign = 'center'; cx.fillText(s.title, s.x, s.y - 13);
 }
 function drawWorld(now) {
   // grass
@@ -1221,7 +1307,7 @@ function drawWorld(now) {
   for (const z of ZONES) {
     const wiping = paintWipe && paintWipe.z === z, k = wiping ? Math.max(0, Math.min(1, (now - paintWipe.t) / 3200)) : 1;
     if (!zonePainted(z)) {
-      cx.font = '900 30px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.10)'; cx.fillText('ART: TODO', z.x + z.w / 2, z.y + z.h / 2 - 8);
+      cx.font = '900 30px Nunito,system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.10)'; cx.fillText('ART: TODO', z.x + z.w / 2, z.y + z.h / 2 - 8);
       cx.font = '700 14px ui-monospace,Consolas,monospace'; cx.fillText(`(painted in patch ${patchName(z.at - 1)})`, z.x + z.w / 2, z.y + z.h / 2 + 14);
       continue;
     }
@@ -1242,7 +1328,7 @@ function drawWorld(now) {
     cx.fillStyle = '#4a4d53'; cx.fillRect(FENCE_X, 0, W - FENCE_X, H);
     cx.strokeStyle = 'rgba(255,255,255,.12)'; cx.lineWidth = 1; cx.beginPath();
     for (let x = FENCE_X; x <= W; x += 40) { cx.moveTo(x, 0); cx.lineTo(x, H); } for (let y = 0; y <= H; y += 40) { cx.moveTo(FENCE_X, y); cx.lineTo(W, y); } cx.stroke();
-    cx.font = '900 64px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.08)'; cx.fillText('AREA 2', (FENCE_X + W) / 2, 300); cx.font = '700 20px ui-monospace,Consolas,monospace'; cx.fillText('(art ships with version 1.0)', (FENCE_X + W) / 2, 334);
+    cx.font = '900 64px Nunito,system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(255,255,255,.08)'; cx.fillText('AREA 2', (FENCE_X + W) / 2, 300); cx.font = '700 20px ui-monospace,Consolas,monospace'; cx.fillText('(art ships with version 1.0)', (FENCE_X + W) / 2, 334);
   }
   // Area 2 landmarks: a wireframe castle, a crane, the cut content graveyard
   cx.save(); cx.strokeStyle = 'rgba(160,220,255,.75)'; cx.lineWidth = 2; cx.setLineDash([6, 4]);
@@ -1281,8 +1367,8 @@ function drawWorld(now) {
   cx.fillStyle = 'rgba(0,0,0,.22)'; cx.beginPath(); cx.ellipse(GUY.x, GUY.y + 16, 15, 6, 0, 0, 7); cx.fill();
   cx.fillStyle = '#f4f1e6'; cx.strokeStyle = '#1b1f17'; cx.lineWidth = 2; cx.beginPath(); cx.arc(GUY.x, GUY.y + bob, 15, 0, 7); cx.fill(); cx.stroke();
   cx.fillStyle = '#1b1f17'; cx.beginPath(); cx.arc(GUY.x - 5, GUY.y - 3 + bob, 2.2, 0, 7); cx.arc(GUY.x + 5, GUY.y - 3 + bob, 2.2, 0, 7); cx.fill();
-  cx.fillStyle = '#ffd34d'; cx.font = '900 22px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillText('!', GUY.x, GUY.y - 22 + bob);
-  cx.font = '700 11px system-ui,sans-serif'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText('Tutorial', GUY.x, GUY.y + 32); cx.fillStyle = '#fff'; cx.fillText('Tutorial', GUY.x, GUY.y + 32);
+  cx.fillStyle = '#ffd34d'; cx.font = '900 22px Nunito,system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillText('!', GUY.x, GUY.y - 22 + bob);
+  cx.font = '700 11px Nunito,system-ui,sans-serif'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(0,0,0,.6)'; cx.strokeText('Tutorial', GUY.x, GUY.y + 32); cx.fillStyle = '#fff'; cx.fillText('Tutorial', GUY.x, GUY.y + 32);
 }
 
 // things the patch bar has shipped into the world, all slightly unfinished
@@ -1290,7 +1376,7 @@ function drawPatch(p, now) {
   const g = cx; g.save(); g.translate(p.x, p.y); g.strokeStyle = '#1b1f17'; g.lineWidth = 2;
   const label = (t) => { g.font = '700 10px ui-monospace,Consolas,monospace'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.55)'; g.strokeText(t, 0, 34); g.fillStyle = '#dcecff'; g.fillText(t, 0, 34); };
   switch (p.id) {
-    case 'shop': { g.translate(0, -10); g.fillStyle = '#8a5a2b'; g.fillRect(-40, 0, 80, 26); g.strokeRect(-40, 0, 80, 26); for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#fff' : '#e04a3a'; g.fillRect(-44 + k * 11, -14, 11, 14); } g.strokeRect(-44, -14, 88, 14); g.fillStyle = '#ffe36b'; g.font = '800 9px system-ui'; g.textAlign = 'center'; g.fillText('OPEN (BARELY)', 0, 16); g.restore(); return; }
+    case 'shop': { g.translate(0, -10); g.fillStyle = '#8a5a2b'; g.fillRect(-40, 0, 80, 26); g.strokeRect(-40, 0, 80, 26); for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#fff' : '#e04a3a'; g.fillRect(-44 + k * 11, -14, 11, 14); } g.strokeRect(-44, -14, 88, 14); g.fillStyle = '#ffe36b'; g.font = '800 9px Nunito,system-ui'; g.textAlign = 'center'; g.fillText('OPEN (BARELY)', 0, 16); g.restore(); return; }
     case 'bench': { const f = Math.sin(now / 700) * 2; g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(0, 16, 28, 6, 0, 0, 7); g.fill(); g.fillStyle = '#9b6b3c'; for (const y of [-10, -2]) { g.fillRect(-26, y + f, 52, 6); g.strokeRect(-26, y + f, 52, 6); } label('bench (no legs)'); break; }
     case 'fountain': g.fillStyle = '#b9bcc2'; g.beginPath(); g.ellipse(0, 0, 32, 14, 0, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.ellipse(0, -2, 26, 10, 0, 0, 7); g.save(); g.clip(); for (let yy = -12; yy < 10; yy += 6) for (let xx = -26; xx < 26; xx += 6) { g.fillStyle = ((xx + yy) / 6 & 1) ? '#ff00dc' : '#111'; g.fillRect(xx, yy, 6, 6); } g.restore(); g.fillStyle = '#b9bcc2'; g.fillRect(-4, -22, 8, 20); g.strokeRect(-4, -22, 8, 20); label('water.png'); break;
     case 'npc': g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(0, 16, 15, 6, 0, 0, 7); g.fill(); g.strokeStyle = '#1b1f17'; g.lineWidth = 3; g.beginPath(); g.moveTo(-30, 0); g.lineTo(30, 0); g.stroke(); g.lineWidth = 2; g.fillStyle = '#9aa0a6'; g.beginPath(); g.arc(0, 0, 14, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#1b1f17'; g.fillRect(-7, -4, 4, 2); g.fillRect(3, -4, 4, 2); label('NPC_02 (T-pose)'); break;
@@ -1326,7 +1412,7 @@ function frame() {
     const px = z.x + 70, py = z.y + 70;
     cx.fillStyle = '#6b4a2b'; cx.fillRect(px - 2, py, 4, 16);
     cx.fillStyle = '#c9a227'; cx.strokeStyle = '#5a3e12'; cx.lineWidth = 2; cx.beginPath(); cx.roundRect(px - 34, py - 18, 68, 20, 4); cx.fill(); cx.stroke();
-    cx.font = '800 9px system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = '#3a2808'; cx.fillText('SHIPPED BY', px, py - 5);
+    cx.font = '800 9px Nunito,system-ui,sans-serif'; cx.textAlign = 'center'; cx.fillStyle = '#3a2808'; cx.fillText('SHIPPED BY', px, py - 5);
     plaqueSpots.push({ x: px, y: py, text: pl.join(', ') });
   }
   // past the WORLD EDGE sign: dev graffiti, only visible up close
@@ -1382,7 +1468,7 @@ function frame() {
     // name tags: when players stand on top of each other, stack their labels so they never jumble
     const ps = [...snapB.p.keys()].map((id) => interp('p', id)).sort((a, b) => (b.id === myId) - (a.id === myId) || a.y - b.y || a.id - b.id);
     const placed = [];
-    cx.font = '700 12px system-ui,sans-serif';
+    cx.font = '700 12px Nunito,system-ui,sans-serif';
     for (const p of ps) {
       const w = cx.measureText(p.name + ' · ' + p.lvl + (p.ot ? '★' + p.ot : '')).width + 6, th = p.look && p.look[3] > 0 ? 26 : 14;
       let y = p.y + 30, first = null, stacked = 0;
