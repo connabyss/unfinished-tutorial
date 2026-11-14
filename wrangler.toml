@@ -13,3 +13,9 @@ class_name = "World"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["World"]
+
+# Worker Previews (a preview build for every branch / pull request). Each preview gets its own
+# empty world, so testing a branch never touches the live one.
+[[previews.durable_objects.bindings]]
+name = "WORLD"
+class_name = "World"
