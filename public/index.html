@@ -2,15 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2f6b3a">
 <title>The Unfinished Tutorial</title>
 <meta name="description" content="A tiny real MMO. Everyone is stuck in the tutorial because the rest of the game never shipped.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://unfinished-tutorial.connabyss.workers.dev/">
+<meta property="og:title" content="The Unfinished Tutorial">
+<meta property="og:description" content="A tiny real MMO. Everyone is stuck in the tutorial because the rest of the game never shipped.">
+<meta property="og:image" content="https://unfinished-tutorial.connabyss.workers.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Unfinished Tutorial title card over a grassy pixel world">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   :root { --ink:#1b1f17; --paper:#fffdf3; --hud:rgba(20,26,18,.78); --accent:#ffd34d; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { margin:0; height:100%; overflow:hidden; background:#2f6b3a; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff; touch-action:none; user-select:none; -webkit-user-select:none; }
-  canvas { display:block; position:fixed; inset:0; width:100%; height:100%; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#2f6b3a; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff; user-select:none; -webkit-user-select:none; }
+  canvas { display:block; position:fixed; inset:0; width:100%; height:100%; touch-action:none; }
+  button, a, input { touch-action:manipulation; }
+  :focus-visible { outline:3px solid #ffd34d; outline-offset:2px; }
+  #toast.on { background:rgba(20,14,8,.94); border-radius:14px; padding:12px 16px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
   .hud { position:fixed; background:var(--hud); border-radius:12px; padding:8px 10px; font-size:13px; line-height:1.35; }
   #me { top:max(10px,env(safe-area-inset-top)); left:10px; min-width:150px; }
   #me .name { font-weight:700; font-size:14px; cursor:pointer; }
@@ -212,7 +225,7 @@
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "1837ae3735e14269a231be8f41f6f0cd"}'></script><!-- End Cloudflare Web Analytics -->
 </head>
 <body>
-<canvas id="c"></canvas>
+<canvas id="c" role="img" aria-label="Game world. Tap or click to walk, tap slimes to fight, tap trees and rocks to gather."></canvas>
 <div id="vig" aria-hidden="true"></div>
 <div id="me" class="hud">
   <div class="name" id="nm" title="Tap to change your name">…</div>
@@ -233,7 +246,7 @@
   <button id="mebtn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 1.8-1 1.3-2-.6-1.2.2-2.5 1.6-2.5H17a4 4 0 0 0 4-4C21 7 17 3 12 3z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg>Me</button>
   <button id="invite" style="margin-left:auto"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>Invite</button>
 </div>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <button id="spin">Spin</button><button id="dash">Dash</button>
 <div id="act"></div>
 <div id="emotes"><button data-k="0">👋</button><button data-k="1">💃</button><button data-k="2" title="T-pose">🧍</button><button data-k="3">🪑</button><button data-k="4">😭</button></div>
@@ -593,7 +606,15 @@ function log(text, sys, who, said) {
   setTimeout(() => { d.style.opacity = 0; }, small ? 4500 : 8000); setTimeout(() => d.remove(), small ? 5200 : 9000);
 }
 let toastT = 0;
-function toast(big, small) { const t = $('toast'); t.innerHTML = ''; t.append(big); if (small) { const s = document.createElement('small'); s.textContent = small; t.append(s); } t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, 2600); }
+// Toasts queue instead of wiping each other, and each one stays long enough to read (60ms a letter, at least 2.6s).
+const toastQ = [];
+function toastMs(big, small) { return Math.max(2600, 60 * ((big || '').length + (small || '').length)); }
+function toast(big, small) { if (toastQ.length > 3) toastQ.splice(1, 1); toastQ.push([big, small]); if (toastQ.length === 1) toastShow(); }
+function toastShow() {
+  const t = $('toast'), [big, small] = toastQ[0]; t.innerHTML = ''; t.append(big); if (small) { const s = document.createElement('small'); s.textContent = small; t.append(s); }
+  t.classList.add('on'); t.style.opacity = 1; clearTimeout(toastT);
+  toastT = setTimeout(() => { t.style.opacity = 0; toastT = setTimeout(() => { toastQ.shift(); if (toastQ.length) toastShow(); else t.classList.remove('on'); }, 350); }, toastMs(big, small));
+}
 
 // ---------- your character, kept on the server (the browser only keeps your save code) ----------
 const idx = (id) => ITEMS.findIndex((it) => it.id === id);
@@ -871,7 +892,8 @@ const EMOTE_ICONS = ['👋', '💃', '🧍', '🪑', '😭'], emotes = new Map()
 // ---------- juice: screen shake, sound, combos ----------
 let shakeAmt = 0, redFlash = 0, comboN = 0, comboAt = 0;
 const slimeHit = new Map(), slimeKick = new Map();
-function shake(a) { shakeAmt = Math.min(18, Math.max(shakeAmt, a)); }
+const calmMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function shake(a) { if (calmMotion) return; shakeAmt = Math.min(18, Math.max(shakeAmt, a)); }
 function near(o) { const me = snapB && snapB.p.get(myId); return me && Math.hypot(me.x - o.x, me.y - o.y) < 500; }
 let actx = null, muted = store.get('ut_mute') === '1';
 function audio() { if (muted) return null; if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } } if (actx.state === 'suspended') actx.resume(); return actx; }
